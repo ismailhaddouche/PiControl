@@ -1,0 +1,30 @@
+:root{
+  --bg:#f7f9fb;
+  --card:#ffffff;
+  --muted:#666;
+  --accent:#2563eb;
+  --danger:#e11d48;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#111;margin:0;padding:0}
+.container{max-width:1000px;margin:18px auto;padding:18px}
+.site-header{background:linear-gradient(90deg,#0ea5e9, #7c3aed);color:white}
+.site-header .container{display:flex;align-items:center;justify-content:space-between}
+.brand{margin:0;padding:14px;font-size:20px}
+.main-nav a{color:white;text-decoration:none;margin-left:12px;font-weight:600}
+main.container{background:transparent}
+.card{background:var(--card);padding:16px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:18px}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #eee;padding:8px;text-align:left}
+th{background:#fafafa;color:var(--muted)}
+form input, form select{padding:6px 8px;border:1px solid #ddd;border-radius:4px}
+button{background:var(--accent);color:white;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
+button.secondary{background:#64748b}
+.error{color:var(--danger)}
+.flash{min-height:24px;margin-bottom:8px}
+.success{color:green}
+
+@media (max-width:720px){
+  .site-header .container{flex-direction:column;align-items:flex-start}
+  .main-nav a{margin-left:0;margin-right:8px}
+}

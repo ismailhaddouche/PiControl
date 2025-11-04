@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block title %}Fichajes{% endblock %}
+
+{% block content %}
+  <h2>Fichajes</h2>
+  <table>
+    <tr><th>ID</th><th>Empleado ID</th><th>Tipo</th><th>Timestamp</th></tr>
+    {% for f in fichas %}
+    <tr>
+      <td>{{ f.id }}</td>
+      <td>{{ f.empleado_id }}</td>
+      <td>{{ f.tipo }}</td>
+      <td>{{ f.timestamp }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

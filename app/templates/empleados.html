@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}Empleados{% endblock %}
+
+{% block content %}
+  <h2>Empleados</h2>
+  <div class="card">
+    <table>
+      <tr><th>ID</th><th>Nombre</th><th>RFID</th><th>Acciones</th></tr>
+      {% for e in empleados %}
+      <tr>
+        <td>{{ e.id }}</td>
+        <td>{{ e.nombre }}</td>
+        <td id="rfid-cell-{{ e.id }}">{{ e.rfid_uid or '' }}</td>
+        <td>
+          <!-- Fallback POST form (sin JS) -->
+          <form method="post" action="/admin/empleados/{{ e.id }}/assign" style="display:inline">
+            <input name="rfid_uid" id="rfid-input-{{ e.id }}" placeholder="rfid-xxx" />
+            <button type="submit">Asignar</button>
+          </form>
+          <!-- Botón AJAX (si JS está disponible) -->
+          <button data-ajax-assign data-empid="{{ e.id }}" class="secondary">Asignar (AJAX)</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <h3>Añadir empleado</h3>
+  <form method="post" action="/admin/empleados">
+    <label>Nombre: <input name="nombre" required/></label>
+    <label>RFID (opcional): <input name="rfid_uid" /></label>
+    <button type="submit">Crear</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Horas{% endblock %}
+
+{% block content %}
+  <h2>Horas trabajadas - Empleado {{ empleado_id }}</h2>
+  <p>Total horas: {{ total_hours }}</p>
+  <h3>Periodos</h3>
+  <table>
+    <tr><th>Entrada</th><th>Salida</th><th>Horas</th></tr>
+    {% for e, s, h in pairs %}
+    <tr>
+      <td>{{ e }}</td>
+      <td>{{ s }}</td>
+      <td>{{ h }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}
