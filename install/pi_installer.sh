@@ -51,10 +51,27 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+# Detect simple GUI session early (used to decide whether to attempt graphical elevation)
+GUI_SESSION="no"
+if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  GUI_SESSION="yes"
+fi
+PKEXEC_AVAILABLE="no"
+if command -v pkexec >/dev/null 2>&1; then
+  PKEXEC_AVAILABLE="yes"
+fi
+
 if [ "$EUID" -ne 0 ]; then
-  echo "Este instalador debe correrse como root. Salida."
+  # If we're in a graphical session and pkexec is available, try to re-run via pkexec
+  if [ "$GUI_SESSION" = "yes" ] && [ "$PKEXEC_AVAILABLE" = "yes" ]; then
+    echo "No eres root: solicitando elevación gráfica con pkexec..."
+    # Preserve DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR and PATH for the elevated environment
+    exec pkexec env DISPLAY="$DISPLAY" XAUTHORITY="${XAUTHORITY:-}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" PATH="$PATH" bash -c "exec \"$0\" \"\$@\"" _ "$0" "$@"
+  fi
+  echo "Este instalador debe correrse como root. Ejecuta: sudo bash $0"
   exit 1
 fi
+
 
 # GUI mode detection and zenity support
 GUI_AVAILABLE="no"
