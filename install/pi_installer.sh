@@ -56,6 +56,7 @@ fi
 echo "Instalando scripts en /usr/local/bin ..."
 install -m 0755 "$(dirname "$0")/../tools/picontrol-reset-admin.sh" "$RESET_BIN"
 install -m 0755 "$(dirname "$0")/../tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
+install -m 0755 "$(dirname "$0")/../tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
 
 echo "Instalando servicio systemd..."
 install -m 0644 "$(dirname "$0")/picontrol-firstboot.service" "$SERVICE_FILE"
@@ -185,6 +186,18 @@ EOF
     chown "$DESKTOP_USER":"$DESKTOP_USER" "$DESKTOP_DIR/PiControl Reset Admin.desktop" || true
     chmod 0755 "$DESKTOP_DIR/PiControl Reset Admin.desktop"
     echo "Acceso directo creado en $DESKTOP_DIR/PiControl Reset Admin.desktop"
+  # Crear acceso directo para rotar SECRET_KEY
+  cat > "$DESKTOP_DIR/PiControl Rotate Secret.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Rotate PiControl Secret
+Exec=/usr/local/bin/picontrol-rotate-secret.sh
+Icon=security-high
+Terminal=true
+EOF
+  chown "$DESKTOP_USER":"$DESKTOP_USER" "$DESKTOP_DIR/PiControl Rotate Secret.desktop" || true
+  chmod 0755 "$DESKTOP_DIR/PiControl Rotate Secret.desktop"
+  echo "Acceso directo creado en $DESKTOP_DIR/PiControl Rotate Secret.desktop"
   else
     echo "Usuario especificado '$DESKTOP_USER' no existe. Omitiendo acceso en Desktop."
   fi
