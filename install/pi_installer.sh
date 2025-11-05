@@ -64,6 +64,44 @@ echo "Recargando systemd y habilitando servicio..."
 systemctl daemon-reload
 systemctl enable --now picontrol-firstboot.service || true
 
+# Crear e instalar unidad systemd para la API (picontrol.service)
+PICONTROL_SERVICE_FILE="/etc/systemd/system/picontrol.service"
+
+# Determinar usuario para ejecutar el servicio (usar el mismo usuario de escritorio si existe)
+SERVICE_USER="www-data"
+if [ -n "$DESKTOP_USER" ]; then
+  if getent passwd "$DESKTOP_USER" >/dev/null 2>&1; then
+    SERVICE_USER="$DESKTOP_USER"
+  fi
+fi
+
+echo "Creando unidad systemd para la API en $PICONTROL_SERVICE_FILE (usuario: $SERVICE_USER)"
+cat > "$PICONTROL_SERVICE_FILE" <<EOF
+[Unit]
+Description=PiControl API (uvicorn)
+After=network.target picontrol-firstboot.service
+Requires=picontrol-firstboot.service
+Wants=picontrol-firstboot.service
+
+[Service]
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=/opt/picontrol
+Environment=SECRET_KEY=devsecret
+# Esperar hasta 30 segundos a que firstboot marque completion; si no, fallará y systemd reintentará
+ExecStartPre=/bin/sh -c 'for i in \'1 2 3 4 5 6 7 8 9 10\'; do [ -f /var/lib/picontrol/firstboot_done ] && exit 0; sleep 3; done; exit 1'
+ExecStart=/opt/picontrol/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "Recargando systemd y habilitando picontrol.service..."
+systemctl daemon-reload
+systemctl enable --now picontrol.service || true
+
 # Crear acceso en el escritorio del usuario principal (asumimos usuario con UID 1000 si existe)
 DESKTOP_USER=""
 if [ -n "$USER_ARG" ]; then
