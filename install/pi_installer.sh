@@ -75,6 +75,35 @@ if [ -n "$DESKTOP_USER" ]; then
   fi
 fi
 
+CONFIG_FILE="/etc/default/picontrol"
+
+# Crear archivo de configuración seguro con SECRET_KEY si no existe
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Generando archivo de configuración $CONFIG_FILE con SECRET_KEY..."
+  # Generar una secret key segura usando python3
+  if command -v python3 >/dev/null 2>&1; then
+    SECRET_VAL=$(python3 - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+)
+  else
+    # Fallback a /dev/urandom en base64
+    SECRET_VAL=$(head -c 48 /dev/urandom | base64 | tr -d '\n')
+  fi
+  mkdir -p "$(dirname "$CONFIG_FILE")"
+  cat > "$CONFIG_FILE" <<EOF
+# Configuration for PiControl
+# Do not share this file; contains SECRET_KEY for session encryption
+SECRET_KEY=$SECRET_VAL
+EOF
+  chmod 0600 "$CONFIG_FILE"
+  chown root:root "$CONFIG_FILE"
+  echo "Archivo $CONFIG_FILE creado con permisos 600."
+else
+  echo "Archivo de configuración $CONFIG_FILE ya existe; preservando SECRET_KEY existente."
+fi
+
 echo "Creando unidad systemd para la API en $PICONTROL_SERVICE_FILE (usuario: $SERVICE_USER)"
 cat > "$PICONTROL_SERVICE_FILE" <<EOF
 [Unit]
@@ -84,10 +113,11 @@ Requires=picontrol-firstboot.service
 Wants=picontrol-firstboot.service
 
 [Service]
+# Use the environment file for secrets and configuration
 User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=/opt/picontrol
-Environment=SECRET_KEY=devsecret
+EnvironmentFile=$CONFIG_FILE
 # Esperar hasta 30 segundos a que firstboot marque completion; si no, fallará y systemd reintentará
 ExecStartPre=/bin/sh -c 'for i in \'1 2 3 4 5 6 7 8 9 10\'; do [ -f /var/lib/picontrol/firstboot_done ] && exit 0; sleep 3; done; exit 1'
 ExecStart=/opt/picontrol/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
