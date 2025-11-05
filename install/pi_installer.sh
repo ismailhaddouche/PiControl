@@ -56,6 +56,68 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# GUI mode detection and zenity support
+GUI_AVAILABLE="no"
+ZENITY_CMD=""
+if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  # We are in a graphical session (likely). Check for zenity.
+  if command -v zenity >/dev/null 2>&1; then
+    GUI_AVAILABLE="yes"
+    ZENITY_CMD=zenity
+  else
+    # If apt-get is available, offer to install zenity (CLI prompt)
+    if command -v apt-get >/dev/null 2>&1; then
+      echo "Entorno gráfico detectado pero 'zenity' no está instalado."
+      read -p "¿Deseas instalar 'zenity' ahora para usar instalador gráfico? [Y/n] " -r RESP
+      RESP=${RESP:-Y}
+      if [[ "$RESP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+        echo "Instalando zenity..."
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -y
+        apt-get install -y zenity || true
+        if command -v zenity >/dev/null 2>&1; then
+          GUI_AVAILABLE="yes"
+          ZENITY_CMD=zenity
+        fi
+      fi
+    fi
+  fi
+fi
+
+use_gui() {
+  [ "$GUI_AVAILABLE" = "yes" ]
+}
+
+prompt_gui_options() {
+  # Use zenity to collect GITHUB_REPO, USER_ARG and re-install flag
+  GITHUB_REPO=$(zenity --entry --title="PiControl Installer" --text="GitHub repo to clone (leave empty to use local repo):" --entry-text "$GITHUB_REPO" 2>/dev/null || echo "$GITHUB_REPO")
+  USER_ARG=$(zenity --entry --title="PiControl Installer" --text="Desktop user (leave empty to detect e.g. 'pi'):" --entry-text "$USER_ARG" 2>/dev/null || echo "$USER_ARG")
+  if zenity --question --title="PiControl Installer" --text="Force reinstall Python requirements?" 2>/dev/null; then
+    REINSTALL_REQ="yes"
+  else
+    REINSTALL_REQ="no"
+  fi
+}
+
+start_progress() {
+  # Start a background zenity progress if GUI available
+  if use_gui; then
+    exec 3> >(zenity --progress --title="Instalando PiControl" --percentage=0 --auto-close)
+  fi
+}
+
+progress_update() {
+  # progress_update <percent> <message>
+  if use_gui; then
+    local pct=${1:-0}
+    local msg=${2:-""}
+    echo "$pct"
+    echo "# $msg"
+  else
+    echo "$2"
+  fi
+}
+
 # Detectar e instalar dependencias de sistema necesarias (Debian/Ubuntu/Raspbian)
 check_and_install_deps() {
   echo "Comprobando dependencias de sistema..."
@@ -94,6 +156,13 @@ check_and_install_deps() {
 
 check_and_install_deps
 
+# If GUI is available prompt for options
+if use_gui; then
+  prompt_gui_options
+fi
+
+start_progress
+
 echo "Creando directorio $TARGET_LIB_DIR ..."
 mkdir -p "$TARGET_LIB_DIR"
 chown root:root "$TARGET_LIB_DIR"
@@ -124,6 +193,7 @@ if [ ! -d "$REPO_DIR/.venv" ]; then
 fi
 VENV_PY="$REPO_DIR/.venv/bin/python"
 VENV_PIP="$REPO_DIR/.venv/bin/pip"
+progress_update 10 "Creando virtualenv e instalando pip/setuptools..."
 "$VENV_PY" -m pip install --upgrade pip setuptools wheel >/dev/null
 
 # Reinstalar requirements si han cambiado o si se pide --reinstall
@@ -161,12 +231,12 @@ if [ -f "$REQ_FILE" ]; then
   fi
 
   if [ "$NEEDS_INSTALL" = "yes" ]; then
-    echo "Instalando/actualizando dependencias Python desde $REQ_FILE ..."
+    progress_update 40 "Instalando dependencias Python desde requirements.txt..."
     "$VENV_PIP" install -r "$REQ_FILE"
     # Guardar checksum
     compute_req_checksum > "$CHECKSUM_FILE" || true
   else
-    echo "requirements.txt sin cambios y --reinstall no fue pasado; omitiendo pip install. Usa --reinstall para forzar." 
+    progress_update 40 "requirements.txt sin cambios; omitiendo pip install."
   fi
 fi
 
@@ -181,6 +251,8 @@ install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin-gui.sh" "/usr/local/bin/p
 install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "/usr/local/bin/picontrol-rotate-secret-gui.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-restart-gui.sh" "/usr/local/bin/picontrol-restart-gui.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "/usr/local/bin/picontrol-firstboot-gui.sh" || true
+
+progress_update 60 "Instalando servicios systemd y configurando unidades..."
 
 echo "Instalando servicio systemd..."
 install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
@@ -255,6 +327,8 @@ EOF
 echo "Recargando systemd y habilitando picontrol.service..."
 systemctl daemon-reload
 systemctl enable --now picontrol.service || true
+
+progress_update 80 "Inicializando base de datos y ajustando permisos..."
 
 # Instalar y habilitar cleanup timer/service para borrar registros antiguos
 CLEANUP_SERVICE_SRC="$REPO_DIR/install/cleanup_picontrol.service"
@@ -366,5 +440,14 @@ fi
 
 echo "Instalación completada. El servicio picontrol-firstboot está habilitado y se ejecutará en el siguiente arranque (o ya se lanzó)."
 echo "Si quieres desinstalar, borra los archivos instalados y deshabilita el servicio con: systemctl disable --now picontrol-firstboot.service"
+
+progress_update 100 "Instalación completada."
+
+if use_gui; then
+  # close progress (stdin->zenity via fd3 will exit when script exits)
+  true
+else
+  echo "Instalación completada."
+fi
 
 exit 0
