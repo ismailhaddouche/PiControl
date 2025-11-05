@@ -60,26 +60,25 @@ fi
 GUI_AVAILABLE="no"
 ZENITY_CMD=""
 if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-  # We are in a graphical session (likely). Check for zenity.
+  # We are in a graphical session (likely). Ensure zenity is installed.
   if command -v zenity >/dev/null 2>&1; then
     GUI_AVAILABLE="yes"
     ZENITY_CMD=zenity
   else
-    # If apt-get is available, offer to install zenity (CLI prompt)
+    # Auto-install zenity if apt-get is available (non-interactive)
     if command -v apt-get >/dev/null 2>&1; then
-      echo "Entorno gráfico detectado pero 'zenity' no está instalado."
-      read -p "¿Deseas instalar 'zenity' ahora para usar instalador gráfico? [Y/n] " -r RESP
-      RESP=${RESP:-Y}
-      if [[ "$RESP" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Instalando zenity..."
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -y
-        apt-get install -y zenity || true
-        if command -v zenity >/dev/null 2>&1; then
-          GUI_AVAILABLE="yes"
-          ZENITY_CMD=zenity
-        fi
+      echo "Entorno gráfico detectado y 'zenity' no está instalado. Instalando zenity automáticamente..."
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y zenity || true
+      if command -v zenity >/dev/null 2>&1; then
+        GUI_AVAILABLE="yes"
+        ZENITY_CMD=zenity
+      else
+        echo "No se pudo instalar 'zenity'. Continuando en modo texto."
       fi
+    else
+      echo "Entorno gráfico detectado pero no hay apt-get: no se puede instalar 'zenity' automáticamente. Continuando en modo texto."
     fi
   fi
 fi
