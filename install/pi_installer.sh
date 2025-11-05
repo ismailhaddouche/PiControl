@@ -11,6 +11,16 @@ RESET_BIN="/usr/local/bin/picontrol-reset-admin.sh"
 FIRSTBOOT_BIN="/usr/local/bin/picontrol-firstboot.sh"
 SERVICE_FILE="/etc/systemd/system/picontrol-firstboot.service"
 
+# Adjust paths for local (non-root) installs
+if [ "${INSTALL_MODE:-system}" = "local" ]; then
+  INSTALL_PREFIX="$HOME/.local/picontrol"
+  REPO_DIR="$INSTALL_PREFIX"
+  TARGET_LIB_DIR="$HOME/.local/share/picontrol"
+  RESET_BIN="$HOME/.local/bin/picontrol-reset-admin.sh"
+  FIRSTBOOT_BIN="$HOME/.local/bin/picontrol-firstboot.sh"
+  SERVICE_FILE=""
+fi
+
 usage() {
   cat <<EOF
 Usage: $0 [--user USER] [--github-repo REPO]
@@ -18,6 +28,8 @@ Usage: $0 [--user USER] [--github-repo REPO]
   --user USER, -u USER         Crear accesos .desktop para el usuario USER (opcional).
   --github-repo REPO, -g REPO  Clonar el repositorio desde REPO a /opt/picontrol antes de instalar.
   --reinstall, -r              Forzar re-ejecución de pip install -r requirements.txt en el venv.
+  --system                     Forzar instalación a nivel sistema (requiere root).
+  --local                      Forzar instalación en modo usuario (~/.local, no requiere root).
 EOF
   exit 1
 }
@@ -25,11 +37,21 @@ EOF
 GITHUB_REPO=""
 USER_ARG=""
 REINSTALL_REQ="no"
+FORCE_SYSTEM="no"
+FORCE_LOCAL="no"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --user|-u)
       shift
       USER_ARG="$1"
+      shift
+      ;;
+    --system)
+      FORCE_SYSTEM="yes"
+      shift
+      ;;
+    --local)
+      FORCE_LOCAL="yes"
       shift
       ;;
     --github-repo|--github|-g)
@@ -61,14 +83,28 @@ if command -v pkexec >/dev/null 2>&1; then
   PKEXEC_AVAILABLE="yes"
 fi
 
-if [ "$EUID" -ne 0 ]; then
-  # If we're in a graphical session and pkexec is available, try to re-run via pkexec
+# Decide install mode: system or local (user)
+INSTALL_MODE="system"
+if [ "$FORCE_LOCAL" = "yes" ]; then
+  INSTALL_MODE="local"
+elif [ "$FORCE_SYSTEM" = "yes" ]; then
+  INSTALL_MODE="system"
+else
+  if [ "$EUID" -ne 0 ]; then
+    # Default to local install when not root
+    INSTALL_MODE="local"
+  else
+    INSTALL_MODE="system"
+  fi
+fi
+
+# If system install requested but not root, attempt graphical elevation; otherwise fail
+if [ "$INSTALL_MODE" = "system" ] && [ "$EUID" -ne 0 ]; then
   if [ "$GUI_SESSION" = "yes" ] && [ "$PKEXEC_AVAILABLE" = "yes" ]; then
-    echo "No eres root: solicitando elevación gráfica con pkexec..."
-    # Preserve DISPLAY, XAUTHORITY, XDG_RUNTIME_DIR and PATH for the elevated environment
+    echo "Solicitando elevación gráfica con pkexec para instalación a nivel sistema..."
     exec pkexec env DISPLAY="$DISPLAY" XAUTHORITY="${XAUTHORITY:-}" XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" PATH="$PATH" bash -c "exec \"$0\" \"\$@\"" _ "$0" "$@"
   fi
-  echo "Este instalador debe correrse como root. Ejecuta: sudo bash $0"
+  echo "Instalación a nivel sistema requiere root. Ejecuta: sudo bash $0 --system"
   exit 1
 fi
 
@@ -183,8 +219,13 @@ start_progress
 
 echo "Creando directorio $TARGET_LIB_DIR ..."
 mkdir -p "$TARGET_LIB_DIR"
-chown root:root "$TARGET_LIB_DIR"
-chmod 0755 "$TARGET_LIB_DIR"
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  chown root:root "$TARGET_LIB_DIR" || true
+  chmod 0755 "$TARGET_LIB_DIR" || true
+else
+  chown "$USER" "$TARGET_LIB_DIR" || true
+  chmod 0755 "$TARGET_LIB_DIR" || true
+fi
 
 echo "Guardando machine-id en $TARGET_LIB_DIR/machine-id ..."
 if [ -f /etc/machine-id ]; then
@@ -196,7 +237,14 @@ fi
 echo "Preparando repositorio en $REPO_DIR ..."
 if [ -n "$GITHUB_REPO" ] && [ ! -d "$REPO_DIR" ]; then
   echo "Clonando $GITHUB_REPO en $REPO_DIR ..."
-  git clone --depth 1 "$GITHUB_REPO" "$REPO_DIR"
+  if [ "${INSTALL_MODE:-system}" = "system" ]; then
+    git clone --depth 1 "$GITHUB_REPO" "$REPO_DIR"
+  else
+    # local mode: clone into user-owned dir
+    mkdir -p "$REPO_DIR"
+    git clone --depth 1 "$GITHUB_REPO" "$REPO_DIR"
+    chown -R "$USER" "$REPO_DIR" || true
+  fi
 fi
 
 if [ ! -d "$REPO_DIR" ]; then
@@ -270,23 +318,41 @@ install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "/usr/local/bin
 install -m 0755 "$REPO_DIR/tools/picontrol-restart-gui.sh" "/usr/local/bin/picontrol-restart-gui.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "/usr/local/bin/picontrol-firstboot-gui.sh" || true
 
+if [ "${INSTALL_MODE:-system}" = "local" ]; then
+  # For local installs, copy user-wrappers to ~/.local/bin instead of /usr/local/bin
+  mkdir -p "$HOME/.local/bin"
+  install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin.sh" "$HOME/.local/bin/picontrol-reset-admin.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret.sh" "$HOME/.local/bin/picontrol-rotate-secret.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-restart.sh" "$HOME/.local/bin/picontrol-restart.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin-gui.sh" "$HOME/.local/bin/picontrol-reset-admin-gui.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "$HOME/.local/bin/picontrol-rotate-secret-gui.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-restart-gui.sh" "$HOME/.local/bin/picontrol-restart-gui.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "$HOME/.local/bin/picontrol-firstboot-gui.sh" || true
+fi
+
 progress_update 60 "Instalando servicios systemd y configurando unidades..."
 
 echo "Instalando servicio systemd..."
-install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
+fi
 
 echo "Recargando systemd y habilitando servicio..."
-systemctl daemon-reload
-systemctl enable --now picontrol-firstboot.service || true
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  systemctl daemon-reload
+  systemctl enable --now picontrol-firstboot.service || true
+fi
 
 # Crear e instalar unidad systemd para la API (picontrol.service)
 PICONTROL_SERVICE_FILE="/etc/systemd/system/picontrol.service"
 
 # Crear usuario de servicio específico si no existe
 SERVICE_USER="picontrol"
-if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
-  echo "Creando usuario de servicio $SERVICE_USER ..."
-  useradd --system --no-create-home --home-dir "$TARGET_LIB_DIR" --shell /usr/sbin/nologin "$SERVICE_USER" || true
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    echo "Creando usuario de servicio $SERVICE_USER ..."
+    useradd --system --no-create-home --home-dir "$TARGET_LIB_DIR" --shell /usr/sbin/nologin "$SERVICE_USER" || true
+  fi
 fi
 
 CONFIG_FILE="/etc/default/picontrol"
@@ -318,6 +384,18 @@ else
   echo "Archivo de configuración $CONFIG_FILE ya existe; preservando SECRET_KEY existente."
 fi
 
+if [ "${INSTALL_MODE:-system}" = "local" ]; then
+  # For local installs, write a per-user config under $TARGET_LIB_DIR
+  CONFIG_FILE_USER="$TARGET_LIB_DIR/picontrol.env"
+  if [ ! -f "$CONFIG_FILE_USER" ]; then
+    mkdir -p "$(dirname "$CONFIG_FILE_USER")"
+    echo "SECRET_KEY=$SECRET_VAL" > "$CONFIG_FILE_USER"
+    chmod 0600 "$CONFIG_FILE_USER"
+    chown "$USER":"$USER" "$CONFIG_FILE_USER" || true
+    echo "Archivo de configuración local creado en $CONFIG_FILE_USER"
+  fi
+fi
+
 echo "Creando unidad systemd para la API en $PICONTROL_SERVICE_FILE (usuario: $SERVICE_USER)"
 cat > "$PICONTROL_SERVICE_FILE" <<EOF
 [Unit]
@@ -343,8 +421,12 @@ WantedBy=multi-user.target
 EOF
 
 echo "Recargando systemd y habilitando picontrol.service..."
-systemctl daemon-reload
-systemctl enable --now picontrol.service || true
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  systemctl daemon-reload
+  systemctl enable --now picontrol.service || true
+else
+  echo "Instalación local: no se crea unidad systemd. Para ejecutar PiControl en modo local puedes lanzar: $REPO_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+fi
 
 progress_update 80 "Inicializando base de datos y ajustando permisos..."
 
@@ -378,7 +460,11 @@ chmod 0750 /var/log/picontrol || true
 
 echo "Ajustando propiedad de $TARGET_LIB_DIR y $DB_PATH..."
 mkdir -p "$(dirname "$DB_PATH")"
-chown -R "$SERVICE_USER":"$SERVICE_USER" "$TARGET_LIB_DIR" || true
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  chown -R "$SERVICE_USER":"$SERVICE_USER" "$TARGET_LIB_DIR" || true
+else
+  chown -R "$USER":"$USER" "$TARGET_LIB_DIR" || true
+fi
 
 if [ ! -f "$DB_PATH" ]; then
   if [ -x "$VENV_PY" ]; then
@@ -413,7 +499,7 @@ if [ -n "$DESKTOP_USER" ]; then
     USER_HOME=$(getent passwd "$DESKTOP_USER" | cut -d: -f6)
     DESKTOP_DIR="$USER_HOME/Desktop"
     mkdir -p "$DESKTOP_DIR"
-  cat > "$DESKTOP_DIR/PiControl Reset Admin.desktop" <<EOF
+[ -n "$DESKTOP_USER" ] && cat > "$DESKTOP_DIR/PiControl Reset Admin.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Reset PiControl Admin

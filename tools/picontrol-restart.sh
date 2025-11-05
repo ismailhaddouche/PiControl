@@ -7,7 +7,14 @@ set -euo pipefail
 SVC="picontrol.service"
 CLEANUP_TIMER="cleanup_picontrol.timer"
 
-echo "Reiniciando servicio $SVC..."
+echo "Attempting user-level restart first (if service installed as user)..."
+if systemctl --user list-units | grep -q "picontrol.service"; then
+  echo "Restarting user service picontrol.service..."
+  systemctl --user restart picontrol.service && echo "User picontrol.service restarted." || echo "Failed to restart user picontrol.service"
+  exit 0
+fi
+
+echo "User-level service not found. Attempting system-level restart (may require root)."
 if systemctl is-active --quiet "$SVC"; then
   systemctl restart "$SVC" && echo "$SVC reiniciado." || echo "Fallo al reiniciar $SVC"
 else
