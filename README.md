@@ -145,7 +145,17 @@ Si quieres contribuir, abre un issue o un pull request. Revisa las convenciones 
 
 ## Licencia
 
-Revisa el fichero `LICENSE` incluido en el repositorio para detalles de la licencia.
+Este proyecto se distribuye bajo la licencia GNU General Public License v3.0 (GPL-3.0).
+
+Resumen rápido (no sustituye la lectura del texto completo):
+
+- Puedes usar, copiar y distribuir este software gratis.
+- Si publicas o distribuyes una versión modificada del código, debes hacerlo bajo la misma licencia (GPL-3.0). Esto significa que las modificaciones deben estar disponibles también como software libre y con los mismos términos.
+- Consulta el fichero `LICENSE` para el texto completo de la GPL-3.0 y detalles legales.
+
+Si incluyes este proyecto dentro de otro producto (por ejemplo, redistribuyendo binarios o incorporándolo en una imagen), asegúrate de cumplir las obligaciones de la GPL-3.0 (incluir avisos de licencia y proporcionar el código fuente de las modificaciones bajo GPL-3.0).
+
+SPDX: MIT -> GPL-3.0-or-later
 
 ---
 
