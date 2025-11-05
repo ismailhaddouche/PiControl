@@ -5,25 +5,40 @@
 set -euo pipefail
 
 TARGET_LIB_DIR="/var/lib/picontrol"
+INSTALL_PREFIX="/opt/picontrol"
+REPO_DIR="$INSTALL_PREFIX"
 RESET_BIN="/usr/local/bin/picontrol-reset-admin.sh"
 FIRSTBOOT_BIN="/usr/local/bin/picontrol-firstboot.sh"
 SERVICE_FILE="/etc/systemd/system/picontrol-firstboot.service"
 
 usage() {
   cat <<EOF
-Usage: $0 [--user USER]
+Usage: $0 [--user USER] [--github-repo REPO]
 
-  --user USER, -u USER   Crear acceso .desktop para el usuario USER (opcional).
+  --user USER, -u USER         Crear accesos .desktop para el usuario USER (opcional).
+  --github-repo REPO, -g REPO  Clonar el repositorio desde REPO a /opt/picontrol antes de instalar.
+  --reinstall, -r              Forzar re-ejecución de pip install -r requirements.txt en el venv.
 EOF
   exit 1
 }
 
+GITHUB_REPO=""
 USER_ARG=""
+REINSTALL_REQ="no"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --user|-u)
       shift
       USER_ARG="$1"
+      shift
+      ;;
+    --github-repo|--github|-g)
+      shift
+      GITHUB_REPO="$1"
+      shift
+      ;;
+    --reinstall|-r)
+      REINSTALL_REQ="yes"
       shift
       ;;
     --help|-h)
@@ -41,6 +56,44 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# Detectar e instalar dependencias de sistema necesarias (Debian/Ubuntu/Raspbian)
+check_and_install_deps() {
+  echo "Comprobando dependencias de sistema..."
+  missing=()
+
+  # Comprobar comandos básicos
+  command -v python3 >/dev/null 2>&1 || missing+=(python3)
+  command -v git >/dev/null 2>&1 || missing+=(git)
+
+  # Paquetes Debian/apt
+  dpkg -s python3-venv >/dev/null 2>&1 || missing+=(python3-venv)
+  dpkg -s python3-pip >/dev/null 2>&1 || missing+=(python3-pip)
+  dpkg -s build-essential >/dev/null 2>&1 || missing+=(build-essential)
+  dpkg -s libssl-dev >/dev/null 2>&1 || missing+=(libssl-dev)
+  dpkg -s libffi-dev >/dev/null 2>&1 || missing+=(libffi-dev)
+  dpkg -s python3-dev >/dev/null 2>&1 || missing+=(python3-dev)
+
+  if [ ${#missing[@]} -eq 0 ]; then
+    echo "Todas las dependencias del sistema están presentes."
+    return 0
+  fi
+
+  echo "Faltan paquetes: ${missing[*]}"
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "Instalando dependencias con apt-get... (esto puede tardar)"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get install -y "${missing[@]}"
+    apt-get clean
+    return 0
+  else
+    echo "No se encontró apt-get. Instala manualmente: ${missing[*]}"
+    exit 1
+  fi
+}
+
+check_and_install_deps
+
 echo "Creando directorio $TARGET_LIB_DIR ..."
 mkdir -p "$TARGET_LIB_DIR"
 chown root:root "$TARGET_LIB_DIR"
@@ -53,13 +106,79 @@ else
   hostnamectl --no-pager status | head -n 1 > "$TARGET_LIB_DIR/machine-id" || true
 fi
 
+echo "Preparando repositorio en $REPO_DIR ..."
+if [ -n "$GITHUB_REPO" ] && [ ! -d "$REPO_DIR" ]; then
+  echo "Clonando $GITHUB_REPO en $REPO_DIR ..."
+  git clone --depth 1 "$GITHUB_REPO" "$REPO_DIR"
+fi
+
+if [ ! -d "$REPO_DIR" ]; then
+  echo "No se encontró el repositorio en $REPO_DIR. Asegúrate de ejecutar este script desde el repo o usa --github-repo."
+  exit 1
+fi
+
+echo "Creando virtualenv (si falta) y instalando dependencias..."
+cd "$REPO_DIR"
+if [ ! -d "$REPO_DIR/.venv" ]; then
+  python3 -m venv "$REPO_DIR/.venv"
+fi
+VENV_PY="$REPO_DIR/.venv/bin/python"
+VENV_PIP="$REPO_DIR/.venv/bin/pip"
+"$VENV_PY" -m pip install --upgrade pip setuptools wheel >/dev/null
+
+# Reinstalar requirements si han cambiado o si se pide --reinstall
+REQ_FILE="$REPO_DIR/requirements.txt"
+CHECKSUM_FILE="$REPO_DIR/.venv/requirements.sha256"
+
+compute_req_checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$REQ_FILE" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$REQ_FILE" | awk '{print $1}'
+  else
+    # Fallback a python si no hay sha256sum
+    "$VENV_PY" - <<PY 2>/dev/null
+import hashlib,sys
+print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())
+PY
+  fi
+}
+
+if [ -f "$REQ_FILE" ]; then
+  NEEDS_INSTALL="no"
+  if [ "$REINSTALL_REQ" = "yes" ]; then
+    NEEDS_INSTALL="yes"
+  else
+    NEWSUM=$(compute_req_checksum)
+    if [ -f "$CHECKSUM_FILE" ]; then
+      OLDSUM=$(cat "$CHECKSUM_FILE" 2>/dev/null || true)
+    else
+      OLDSUM=""
+    fi
+    if [ "$NEWSUM" != "$OLDSUM" ]; then
+      NEEDS_INSTALL="yes"
+    fi
+  fi
+
+  if [ "$NEEDS_INSTALL" = "yes" ]; then
+    echo "Instalando/actualizando dependencias Python desde $REQ_FILE ..."
+    "$VENV_PIP" install -r "$REQ_FILE"
+    # Guardar checksum
+    compute_req_checksum > "$CHECKSUM_FILE" || true
+  else
+    echo "requirements.txt sin cambios y --reinstall no fue pasado; omitiendo pip install. Usa --reinstall para forzar." 
+  fi
+fi
+
 echo "Instalando scripts en /usr/local/bin ..."
-install -m 0755 "$(dirname "$0")/../tools/picontrol-reset-admin.sh" "$RESET_BIN"
-install -m 0755 "$(dirname "$0")/../tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
-install -m 0755 "$(dirname "$0")/../tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
+install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin.sh" "$RESET_BIN"
+install -m 0755 "$REPO_DIR/tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
+install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
+install -m 0755 "$REPO_DIR/tools/picontrol-cleanup.sh" "/usr/local/bin/picontrol-cleanup.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-restart.sh" "/usr/local/bin/picontrol-restart.sh" || true
 
 echo "Instalando servicio systemd..."
-install -m 0644 "$(dirname "$0")/picontrol-firstboot.service" "$SERVICE_FILE"
+install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
 
 echo "Recargando systemd y habilitando servicio..."
 systemctl daemon-reload
@@ -68,12 +187,11 @@ systemctl enable --now picontrol-firstboot.service || true
 # Crear e instalar unidad systemd para la API (picontrol.service)
 PICONTROL_SERVICE_FILE="/etc/systemd/system/picontrol.service"
 
-# Determinar usuario para ejecutar el servicio (usar el mismo usuario de escritorio si existe)
-SERVICE_USER="www-data"
-if [ -n "$DESKTOP_USER" ]; then
-  if getent passwd "$DESKTOP_USER" >/dev/null 2>&1; then
-    SERVICE_USER="$DESKTOP_USER"
-  fi
+# Crear usuario de servicio específico si no existe
+SERVICE_USER="picontrol"
+if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
+  echo "Creando usuario de servicio $SERVICE_USER ..."
+  useradd --system --no-create-home --home-dir "$TARGET_LIB_DIR" --shell /usr/sbin/nologin "$SERVICE_USER" || true
 fi
 
 CONFIG_FILE="/etc/default/picontrol"
@@ -117,11 +235,11 @@ Wants=picontrol-firstboot.service
 # Use the environment file for secrets and configuration
 User=$SERVICE_USER
 Group=$SERVICE_USER
-WorkingDirectory=/opt/picontrol
+WorkingDirectory=$REPO_DIR
 EnvironmentFile=$CONFIG_FILE
 # Esperar hasta 30 segundos a que firstboot marque completion; si no, fallará y systemd reintentará
-ExecStartPre=/bin/sh -c 'for i in \'1 2 3 4 5 6 7 8 9 10\'; do [ -f /var/lib/picontrol/firstboot_done ] && exit 0; sleep 3; done; exit 1'
-ExecStart=/opt/picontrol/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+ExecStartPre=/bin/sh -c 'for i in '\''1 2 3 4 5 6 7 8 9 10'\''; do [ -f /var/lib/picontrol/firstboot_done ] && exit 0; sleep 3; done; exit 1'
+ExecStart=$REPO_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5s
 
@@ -134,8 +252,8 @@ systemctl daemon-reload
 systemctl enable --now picontrol.service || true
 
 # Instalar y habilitar cleanup timer/service para borrar registros antiguos
-CLEANUP_SERVICE_SRC="$(dirname "$0")/cleanup_picontrol.service"
-CLEANUP_TIMER_SRC="$(dirname "$0")/cleanup_picontrol.timer"
+CLEANUP_SERVICE_SRC="$REPO_DIR/install/cleanup_picontrol.service"
+CLEANUP_TIMER_SRC="$REPO_DIR/install/cleanup_picontrol.timer"
 if [ -f "$CLEANUP_SERVICE_SRC" ]; then
   echo "Instalando cleanup service..."
   install -m 0644 "$CLEANUP_SERVICE_SRC" "/etc/systemd/system/cleanup_picontrol.service"
@@ -152,22 +270,27 @@ systemctl daemon-reload
 systemctl enable --now cleanup_picontrol.timer || true
 
 # Inicializar la base de datos en /var/lib/picontrol/pi_control.db si no existe.
-# Si el repositorio está presente en ../ (cuando se ejecuta desde install/),
-# usaremos el venv ubicado en el repo para llamar a app.db.init_db().
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VENV_PY="$REPO_DIR/.venv/bin/python"
 DB_PATH="/var/lib/picontrol/pi_control.db"
+
+# Asegurar directorios y permisos
+echo "Creando /var/log/picontrol y ajustando permisos..."
+mkdir -p /var/log/picontrol
+chown "$SERVICE_USER":"$SERVICE_USER" /var/log/picontrol || true
+chmod 0750 /var/log/picontrol || true
+
+echo "Ajustando propiedad de $TARGET_LIB_DIR y $DB_PATH..."
+mkdir -p "$(dirname "$DB_PATH")"
+chown -R "$SERVICE_USER":"$SERVICE_USER" "$TARGET_LIB_DIR" || true
+
 if [ ! -f "$DB_PATH" ]; then
   if [ -x "$VENV_PY" ]; then
     echo "Inicializando BD en $DB_PATH usando venv en $REPO_DIR ..."
-    # Asegurar que el repo está en sys.path para que app.db importe correctamente
     "$VENV_PY" -c "import sys; sys.path.insert(0, '$REPO_DIR'); from app.db import init_db; init_db()"
-    # Ajustar propiedad del archivo a SERVICE_USER si existe
     chown "$SERVICE_USER":"$SERVICE_USER" "$DB_PATH" || true
     echo "Base de datos inicializada y propiedad ajustada a $SERVICE_USER"
   else
     echo "No se encontró venv-python en $VENV_PY; creando fichero vacío $DB_PATH y ajustando permisos"
-    mkdir -p "$(dirname "$DB_PATH")"
     touch "$DB_PATH"
     chown "$SERVICE_USER":"$SERVICE_USER" "$DB_PATH" || true
   fi
@@ -216,6 +339,18 @@ EOF
   chown "$DESKTOP_USER":"$DESKTOP_USER" "$DESKTOP_DIR/PiControl Rotate Secret.desktop" || true
   chmod 0755 "$DESKTOP_DIR/PiControl Rotate Secret.desktop"
   echo "Acceso directo creado en $DESKTOP_DIR/PiControl Rotate Secret.desktop"
+  # Crear acceso directo para reiniciar los servicios de PiControl
+  cat > "$DESKTOP_DIR/PiControl Restart Services.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Restart PiControl Services
+Exec=/usr/local/bin/picontrol-restart.sh
+Icon=system-restart
+Terminal=true
+EOF
+  chown "$DESKTOP_USER":"$DESKTOP_USER" "$DESKTOP_DIR/PiControl Restart Services.desktop" || true
+  chmod 0755 "$DESKTOP_DIR/PiControl Restart Services.desktop"
+  echo "Acceso directo creado en $DESKTOP_DIR/PiControl Restart Services.desktop"
   else
     echo "Usuario especificado '$DESKTOP_USER' no existe. Omitiendo acceso en Desktop."
   fi
