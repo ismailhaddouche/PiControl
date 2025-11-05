@@ -133,6 +133,24 @@ echo "Recargando systemd y habilitando picontrol.service..."
 systemctl daemon-reload
 systemctl enable --now picontrol.service || true
 
+# Instalar y habilitar cleanup timer/service para borrar registros antiguos
+CLEANUP_SERVICE_SRC="$(dirname "$0")/cleanup_picontrol.service"
+CLEANUP_TIMER_SRC="$(dirname "$0")/cleanup_picontrol.timer"
+if [ -f "$CLEANUP_SERVICE_SRC" ]; then
+  echo "Instalando cleanup service..."
+  install -m 0644 "$CLEANUP_SERVICE_SRC" "/etc/systemd/system/cleanup_picontrol.service"
+fi
+if [ -f "$CLEANUP_TIMER_SRC" ]; then
+  echo "Instalando cleanup timer..."
+  install -m 0644 "$CLEANUP_TIMER_SRC" "/etc/systemd/system/cleanup_picontrol.timer"
+fi
+echo "Instalando wrapper de cleanup en /usr/local/bin..."
+install -m 0755 "$REPO_DIR/tools/picontrol-cleanup.sh" "/usr/local/bin/picontrol-cleanup.sh" || true
+
+echo "Recargando systemd y habilitando cleanup.timer..."
+systemctl daemon-reload
+systemctl enable --now cleanup_picontrol.timer || true
+
 # Inicializar la base de datos en /var/lib/picontrol/pi_control.db si no existe.
 # Si el repositorio está presente en ../ (cuando se ejecuta desde install/),
 # usaremos el venv ubicado en el repo para llamar a app.db.init_db().
