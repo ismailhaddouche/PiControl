@@ -1,331 +1,195 @@
-# PiControl - Employee Time Tracking System# PiControl
-
-A tailored Raspberry Pi app for worker clock-in/out registration using RFID.
+# PiControl - Employee Time Tracking System
 
 A modern, web-based employee time tracking system designed for Raspberry Pi with RFID card support. Built with FastAPI and SQLite, featuring a responsive web interface for employee management and automated check-in/check-out functionality.
 
 **Author:** hismardev
 
-## 🚀 Features
+## 📋 Summary
 
-## Summary
+PiControl is a lightweight application designed to run on a Raspberry Pi and manage employee check-in/check-out records using RFID readers. It provides an administration API (FastAPI), a web interface for administrators, a simulator to test check-ins without hardware, and utilities for installation and recovery on a physical device.
+
+This repository contains the server logic, data models, HTML templates, and installation scripts designed to deploy PiControl on a Raspberry Pi or in a local development environment.
+
+## 🚀 Features
 
 ### Core Functionality
 
-- **RFID-based Time Tracking**: Automatic employee check-in/out using RFID cardsPiControl is a lightweight application designed to run on a Raspberry Pi and manage employee check-in/check-out
-
-- **Employee Management**: Complete CRUD operations for employee recordsrecords using RFID readers. It provides an administration API (FastAPI), a web interface for administrators,
-
-- **Real-time Dashboard**: Live view of employee status and recent activitya simulator to test check-ins without hardware, and utilities for installation and recovery on a physical device.
-
+- **RFID-based Time Tracking**: Automatic employee check-in/out using RFID cards
+- **Employee Management**: Complete CRUD operations for employee records
+- **Real-time Dashboard**: Live view of employee status and recent activity
 - **Time Reports**: Detailed work hours calculation and reporting
+- **Archive System**: Soft delete functionality for employee records
+- **Admin Interface**: Secure web-based administration panel
 
-- **Archive System**: Soft delete functionality for employee recordsThis repository contains the server logic, data models, HTML templates, and installation scripts designed
-
-- **Admin Interface**: Secure web-based administration panelto deploy PiControl on a Raspberry Pi or in a local development environment.
-
-
-
-### Advanced Features## Technologies and Stack Used
+### Advanced Features
 
 - **Automatic Type Detection**: Smart detection of entry vs exit based on last check-in
+- **Session Management**: Secure user authentication with session cookies
+- **Data Validation**: Comprehensive input validation and error handling
+- **Responsive Design**: Mobile-friendly interface for all devices
+- **RESTful API**: Complete REST API for integration with external systems
+- **Background Cleanup**: Automated cleanup of old records and maintenance
 
-- **Session Management**: Secure user authentication with session cookies- **Language:** Python 3.10+ / 3.11+
+## 🛠 Technology Stack
 
-- **Data Validation**: Comprehensive input validation and error handling- **Web framework:** FastAPI (REST endpoints, Jinja2 templates)
+### Backend
 
-- **Responsive Design**: Mobile-friendly interface for all devices- **ASGI Server:** Uvicorn
-
-- **RESTful API**: Complete REST API for integration with external systems- **ORM / Models:** SQLModel (SQLAlchemy)
-
-- **Background Cleanup**: Automated cleanup of old records and maintenance- **Database:** SQLite (`pi_control.db` file)
-
-- **Authentication:** Starlette sessions + password hashing (passlib pbkdf2_sha256)
-
-## 🛠 Technology Stack- **Templates:** Jinja2
-
-- **Lightweight Frontend:** HTML/CSS and JavaScript for AJAX calls
-
-### Backend- **Tests:** pytest + httpx TestClient
-
-- **Framework**: FastAPI 0.121+ (Modern, fast Python web framework)
-
-- **Database**: SQLite with SQLModel ORM (Type-safe database operations)The project avoids heavy dependencies to facilitate installation on Raspberry Pi and resource-limited environments.
-
+- **Framework**: FastAPI 0.95+ (Modern, fast Python web framework)
+- **Database**: SQLite with SQLModel ORM (Type-safe database operations)
 - **Authentication**: Session-based with secure password hashing (passlib + bcrypt)
-
-- **Validation**: Pydantic models for data validation## Requirements
-
+- **Validation**: Pydantic models for data validation
 - **ASGI Server**: Uvicorn with performance optimizations
 
-- Raspberry Pi (optional for real deployment) or any Linux for development.
+### Frontend
 
-### Frontend- Python 3.10+ installed.
-
-- **Template Engine**: Jinja2 with responsive HTML templates- Root privileges access to install systemd services (if applicable).
-
+- **Template Engine**: Jinja2 with responsive HTML templates
 - **CSS Framework**: Custom responsive CSS with mobile-first design
-
-- **JavaScript**: Vanilla JS for dynamic interactions## Installation (local / development)
-
+- **JavaScript**: Vanilla JS for dynamic interactions
 - **Forms**: HTML5 forms with client-side validation
-
-1. Clone the repository and enter the folder:
 
 ### System Integration
 
-- **Operating System**: Optimized for Raspberry Pi OS (Debian-based)```bash
+- **Operating System**: Optimized for Raspberry Pi OS (Debian-based)
+- **Service Management**: systemd service integration
+- **Process Management**: Background task handling
+- **Security**: Machine-ID validation for admin reset functionality
 
-- **Service Management**: systemd service integrationgit clone https://github.com/ismailhaddouche/PiControl.git
+The project avoids heavy dependencies to facilitate installation on Raspberry Pi and resource-limited environments.
 
-- **Process Management**: Background task handlingcd PiControl
+## 📋 Requirements
 
-- **Security**: Machine-ID validation for admin reset functionality```
+### Hardware Requirements
 
-
-
-## 📋 Requirements2. Create and activate a virtual environment:
-
-
-
-### Hardware Requirements```bash
-
-- **Raspberry Pi**: Pi 3B+ or newer (recommended Pi 4 for better performance)python3 -m venv .venv
-
-- **Storage**: Minimum 8GB microSD card (Class 10 recommended)source .venv/bin/activate
-
-- **RFID Reader**: USB RFID reader compatible with EM4100/EM4102 cards```
-
+- **Raspberry Pi**: Pi 3B+ or newer (recommended Pi 4 for better performance)
+- **Storage**: Minimum 8GB microSD card (Class 10 recommended)
+- **RFID Reader**: USB RFID reader compatible with EM4100/EM4102 cards
 - **Network**: Ethernet or Wi-Fi connectivity
-
-3. Install dependencies:
 
 ### Software Requirements
 
-- **OS**: Raspberry Pi OS (Bullseye or newer) or compatible Debian-based system```bash
-
-- **Python**: 3.8+ (3.11+ recommended for optimal performance)pip install --upgrade pip
-
-- **System Packages**: pip install -r requirements.txt
-
-  ```bash```
-
+- **OS**: Raspberry Pi OS (Bullseye or newer) or compatible Debian-based system
+- **Python**: 3.10+ (3.11+ recommended for optimal performance)
+- **System Packages**:
+  ```bash
   sudo apt update
-
-  sudo apt install python3-pip python3-venv git sqlite34. Initialize and start the API (in development you can use reload):
-
+  sudo apt install python3-pip python3-venv git sqlite3
   ```
 
-```bash
+### Python Dependencies
 
-### Python Dependenciesuvicorn app.main:app --reload
-
-All Python dependencies are managed via `requirements.txt`:```
+All Python dependencies are managed via `requirements.txt`:
 
 - `fastapi>=0.95.0` - Web framework
-
-- `uvicorn[standard]>=0.22.0` - ASGI server5. Open the browser at `http://127.0.0.1:8000/admin` to access the administration UI.
-
+- `uvicorn[standard]>=0.22.0` - ASGI server
 - `sqlmodel>=0.0.8` - Database ORM
-
-- `passlib[bcrypt]>=1.7.4` - Password hashing## Raspberry Pi Installation (automatic from GitHub)
-
-- `python-multipart` - Form data handling
-
-- `itsdangerous>=2.1.2` - Session securityThe repository includes utilities to install directly from GitHub and prepare the Pi:
-
+- `passlib[bcrypt]>=1.7.4` - Password hashing
+- `python-multipart>=0.0.20` - Form data handling
+- `itsdangerous>=2.1.2` - Session security
+- `jinja2>=3.1.0` - Template engine
 - `httpx>=0.24.0` - HTTP client for testing
-
-- `pytest>=7.0.0` - Testing framework- `install/install_from_github.sh`: clones (or updates) the repo in `/opt/picontrol`, creates a virtualenv, installs dependencies, and runs the local installer.
-
-- `install/pi_installer.sh`: installer that saves the `machine-id`, installs scripts in `/usr/local/bin`, creates a systemd service `picontrol-firstboot.service`, and creates a `.desktop` access for the desktop user.
+- `pytest>=7.0.0` - Testing framework
+- `pytest-asyncio>=0.21.0` - Async testing support
 
 ## 🔧 Installation
 
-Example usage on Raspberry Pi (run as root):
-
 ### Automatic Installation (Recommended)
 
+#### Option 1: Direct from GitHub
+
 ```bash
-
-#### Option 1: Direct from GitHubsudo bash install/install_from_github.sh https://github.com/ismailhaddouche/PiControl.git main --user pi
-
-```bash```
-
 # Download and run the installer
-
-curl -sSL https://raw.githubusercontent.com/ismailhaddouche/PiControl/main/install/install_from_github.sh | bashImportant notes:
-
-```- Review the scripts before running them as root. The installer places files in `/opt`, `/usr/local/bin` and creates/activates systemd services.
-
-- The installer saves `/etc/machine-id` to `/var/lib/picontrol/machine-id` to allow the admin reset script to only run on the same machine.
+curl -sSL https://raw.githubusercontent.com/ismailhaddouche/PiControl/main/install/install_from_github.sh | bash
+```
 
 #### Option 2: Clone and Install Locally
 
-```bash## Configuration
-
+```bash
 # Clone the repository
+git clone https://github.com/ismailhaddouche/PiControl.git
+cd PiControl
 
-git clone https://github.com/ismailhaddouche/PiControl.git- **First boot / setup:** the project includes a setup screen (`/admin/setup`) that allows creating the first administrator user if none exists.
-
-cd PiControl- **Admin password change:** from the `Configuration` UI you can change the admin password.
-
-- **Time zone:** the configuration UI allows selecting a time zone and the server attempts to apply `timedatectl` (requires privileges).
-
-# Run the local installer- **Export/import DB:** from the configuration you can download the `pi_control.db` file or upload a copy to replace the database (restart recommended after import).
-
+# Run the local installer
 chmod +x install/pi_installer.sh
-
-sudo ./install/pi_installer.shSecurity and recovery:
-
-```- Includes `tools/picontrol-reset-admin.sh` and `tools/reset_admin.py` to recover admin access on the same Raspberry Pi. The flow verifies the saved `machine-id` to prevent resets from another device.
-
-- The reset script generates a secure password and saves it to `/var/lib/picontrol/reset_password.txt` with permissions 600. It's recommended to rotate or delete it after use.
+sudo ./install/pi_installer.sh
+```
 
 ### Manual Installation
 
-## Basic Usage
-
 1. **Clone Repository**
-
-   ```bash- Adding employees, assigning RFID, and managing check-ins is done from the administration UI (`/admin`).
-
-   git clone https://github.com/ismailhaddouche/PiControl.git- To simulate check-ins without a physical RFID reader, run `python simulador.py` in a terminal and type the `rfid_uid` you want to simulate.
-
+   ```bash
+   git clone https://github.com/ismailhaddouche/PiControl.git
    cd PiControl
-
-   ```Common endpoints:
-
-
-
-2. **Create Virtual Environment**- `GET /admin` — main panel (requires login)
-
-   ```bash- `POST /employees/` — create new employee
-
-   python3 -m venv .venv- `GET /employees/` — list all employees
-
-   source .venv/bin/activate- `PUT /employees/{id}/rfid` — assign/update RFID
-
-   ```- `DELETE /employees/{id}` — delete employee (archive)
-
-- `POST /employees/{id}/restore` — restore archived employee
-
-3. **Install Dependencies**
-
-   ```bash## Project Structure
-
-   pip install --upgrade pip
-
-   pip install -r requirements.txtRoot of the project and purpose of the most relevant files/directories:
-
    ```
 
-- `app/` — main application code
+2. **Create Virtual Environment**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
 
-4. **Initialize Database**  - `main.py` — FastAPI entry point and middleware configuration
+3. **Install Dependencies**
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
 
-   ```bash  - `models.py` — SQLModel models (Employee, CheckIn, User, Config)
+4. **Initialize Database**
+   ```bash
+   python scripts/init_db.py
+   ```
 
-   python scripts/init_db.py  - `crud.py` — data access functions and logic (create employee, check-ins, archive/restore, config)
-
-   ```  - `db.py` — SQLite connection/engine utilities
-
-  - `routers/` — organized web/API routes (employees, checkins, web)
-
-5. **Create Admin User**  - `templates/` — Jinja2 templates for web interface
-
-   ```bash  - `static/` — static CSS/JS for the UI
-
+5. **Create Admin User**
+   ```bash
    python tools/reset_admin.py
+   ```
 
-   ```- `simulador.py` — script that simulates RFID card reading (development mode)
+6. **Configure Service (Optional)**
+   ```bash
+   sudo cp install/picontrol.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable picontrol
+   sudo systemctl start picontrol
+   ```
 
-- `pi_control.db` — SQLite file (generated at runtime)
+## ⚙️ Configuration
 
-6. **Configure Service (Optional)**- `install/` — installation scripts and systemd service
-
-   ```bash  - `install_from_github.sh` — cloner/installer from GitHub
-
-   sudo cp install/picontrol.service /etc/systemd/system/  - `pi_installer.sh` — local installer that configures service / scripts
-
-   sudo systemctl daemon-reload  - `picontrol-firstboot.service` — systemd first boot unit
-
-   sudo systemctl enable picontrol- `tools/` — utility scripts
-
-   sudo systemctl start picontrol  - `picontrol-reset-admin.sh` — wrapper that validates machine-id and launches reset
-
-   ```  - `reset_admin.py` — Python script that creates or resets admin account
-
-
-
-## ⚙️ Configuration- `tests/` — automated tests (pytest)
-
-- `requirements.txt` — Python dependencies
-
-### Environment Variables- `README.md` — this file
+### Environment Variables
 
 Create a `.env` file in the project root:
 
-```env## Tests
-
+```env
 # Database Configuration
+PICONTROL_DB_DIR=/var/lib/picontrol
 
-PICONTROL_DB_DIR=/var/lib/picontrolRun tests with:
-
-
-
-# Server Configuration```bash
-
-PICONTROL_HOST=0.0.0.0source .venv/bin/activate
-
-PICONTROL_PORT=8000pytest -q
-
-```
+# Server Configuration
+PICONTROL_HOST=0.0.0.0
+PICONTROL_PORT=8000
 
 # Security Configuration
+SECRET_KEY=your-secure-secret-key-here
 
-SECRET_KEY=your-secure-secret-key-here## Contributing
-
-
-
-# Backup ConfigurationIf you want to contribute, open an issue or pull request. Review style conventions and add tests for relevant changes.
-
+# Backup Configuration
 PICONTROL_BACKUP_DIR=/var/backups/picontrol
 
-## License
-
 # Log Configuration
-
-LOG_LEVEL=INFOThis project is distributed under the GNU General Public License v3.0 (GPL-3.0).
-
+LOG_LEVEL=INFO
 ```
-
-Quick summary (does not replace reading the full text):
 
 ### Database Setup
 
-The application automatically creates the database on first run:- You can use, copy and distribute this software for free.
+The application automatically creates the database on first run:
 
-- **Location**: `/var/lib/picontrol/pi_control.db` (configurable via `PICONTROL_DB_DIR`)- If you publish or distribute a modified version of the code, you must do so under the same license (GPL-3.0). This means modifications must also be available as free software under the same terms.
-
-- **Schema**: Automatically created with English table names (`employee`, `checkin`, `user`, `config`)- See the `LICENSE` file for the full text of GPL-3.0 and legal details.
-
+- **Location**: `/var/lib/picontrol/pi_control.db` (configurable via `PICONTROL_DB_DIR`)
+- **Schema**: Automatically created with English table names (`employee`, `checkin`, `user`, `config`)
 - **Permissions**: Ensure the application has read/write access to the database directory
-
-If you include this project within another product (e.g., redistributing binaries or incorporating it into an image), make sure to comply with GPL-3.0 obligations (include license notices and provide source code of modifications under GPL-3.0).
 
 ### RFID Configuration
 
-1. **Connect RFID Reader**: Plug USB RFID reader into Raspberry PiSPDX: MIT -> GPL-3.0-or-later
-
+1. **Connect RFID Reader**: Plug USB RFID reader into Raspberry Pi
 2. **Test Reader**: Use the simulator to test RFID functionality:
-
-   ```bash---
-
+   ```bash
    python simulador.py
-
-   ```If you want me to add a section with quick administration commands (e.g. how to restart the service, view logs or force migrations), let me know and I'll include it.
-
+   ```
 3. **Configure Cards**: Assign RFID cards to employees through the web interface
 
 ## 🚀 Usage
@@ -637,7 +501,7 @@ We welcome contributions to improve PiControl! Please follow these guidelines:
 ### Development Setup
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/new-feature`
-3. Install development dependencies: `pip install -r requirements-dev.txt`
+3. Install development dependencies: `pip install -r requirements.txt`
 4. Make your changes and add tests
 5. Run tests: `pytest`
 6. Submit a pull request

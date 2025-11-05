@@ -50,7 +50,7 @@ def setup_admin_logging():
 			handler.setFormatter(formatter)
 			logger.addHandler(handler)
 		except Exception:
-			# último recurso: no vomitar error en arranque
+			# last resort: do not raise errors during startup
 			pass
 
 
