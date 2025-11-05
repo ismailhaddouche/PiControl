@@ -11,14 +11,14 @@ def main():
     try:
         from app.db import init_db
     except Exception as e:
-        print("Error: no se puede importar app.db. Comprueba el entorno y PYTHONPATH.", e)
+        print("Error: cannot import app.db. Check the environment and PYTHONPATH.", e)
         sys.exit(2)
 
     try:
         init_db()
-        print("Inicialización de la base de datos completada.")
+        print("Database initialization completed.")
     except Exception as e:
-        print("Fallo al inicializar la base de datos:", e)
+        print("Failed to initialize database:", e)
         sys.exit(1)
 
 if __name__ == '__main__':

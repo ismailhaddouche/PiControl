@@ -120,7 +120,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
   else
     # Auto-install zenity if apt-get is available (non-interactive)
     if command -v apt-get >/dev/null 2>&1; then
-      echo "Entorno gráfico detectado y 'zenity' no está instalado. Instalando zenity automáticamente..."
+      echo "Graphical environment detected and 'zenity' is not installed. Installing zenity automatically..."
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
       apt-get install -y zenity || true
@@ -128,10 +128,10 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         GUI_AVAILABLE="yes"
         ZENITY_CMD=zenity
       else
-        echo "No se pudo instalar 'zenity'. Continuando en modo texto."
+        echo "Could not install 'zenity'. Continuing in text mode."
       fi
     else
-      echo "Entorno gráfico detectado pero no hay apt-get: no se puede instalar 'zenity' automáticamente. Continuando en modo texto."
+      echo "Graphical environment detected but no apt-get: cannot install 'zenity' automatically. Continuing in text mode."
     fi
   fi
 fi
@@ -154,7 +154,7 @@ prompt_gui_options() {
 start_progress() {
   # Start a background zenity progress if GUI available
   if use_gui; then
-    exec 3> >(zenity --progress --title="Instalando PiControl" --percentage=0 --auto-close)
+    exec 3> >(zenity --progress --title="Installing PiControl" --percentage=0 --auto-close)
   fi
 }
 
@@ -194,9 +194,9 @@ check_and_install_deps() {
     return 0
   fi
 
-  echo "Faltan paquetes: ${missing[*]}"
+  echo "Missing packages: ${missing[*]}"
   if command -v apt-get >/dev/null 2>&1; then
-    echo "Instalando dependencias con apt-get... (esto puede tardar)"
+    echo "Installing dependencies with apt-get... (this may take a while)"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
     apt-get install -y "${missing[@]}"
@@ -297,16 +297,16 @@ if [ -f "$REQ_FILE" ]; then
   fi
 
   if [ "$NEEDS_INSTALL" = "yes" ]; then
-    progress_update 40 "Instalando dependencias Python desde requirements.txt..."
+    progress_update 40 "Installing Python dependencies from requirements.txt..."
     "$VENV_PIP" install -r "$REQ_FILE"
-    # Guardar checksum
+    # Save checksum
     compute_req_checksum > "$CHECKSUM_FILE" || true
   else
-    progress_update 40 "requirements.txt sin cambios; omitiendo pip install."
+    progress_update 40 "requirements.txt unchanged; skipping pip install."
   fi
 fi
 
-echo "Instalando scripts en /usr/local/bin ..."
+echo "Installing scripts in /usr/local/bin ..."
 install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin.sh" "$RESET_BIN"
 install -m 0755 "$REPO_DIR/tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
 install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
@@ -349,12 +349,12 @@ if [ "${INSTALL_MODE:-system}" = "system" ]; then
 %picontrol-admins ALL=(root) NOPASSWD: /usr/local/bin/picontrol-restart.sh
 SUDO
   chmod 0440 "$SUDOERS_FILE" || true
-  echo "Archivo sudoers creado en $SUDOERS_FILE (permite ejecutar /usr/local/bin/picontrol-restart.sh sin contraseña para el grupo picontrol-admins)."
+  echo "Sudoers file created at $SUDOERS_FILE (allows executing /usr/local/bin/picontrol-restart.sh without password for picontrol-admins group)."
 fi
 
-progress_update 60 "Instalando servicios systemd y configurando unidades..."
+progress_update 60 "Installing systemd services and configuring units..."
 
-echo "Instalando servicio systemd..."
+echo "Installing systemd service..."
 if [ "${INSTALL_MODE:-system}" = "system" ]; then
   install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
 fi
@@ -379,9 +379,9 @@ fi
 
 CONFIG_FILE="/etc/default/picontrol"
 
-# Crear archivo de configuración seguro con SECRET_KEY si no existe
+# Create secure configuration file with SECRET_KEY if it doesn't exist
 if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Generando archivo de configuración $CONFIG_FILE con SECRET_KEY..."
+  echo "Generating configuration file $CONFIG_FILE with SECRET_KEY..."
   # Generar una secret key segura usando python3
   if command -v python3 >/dev/null 2>&1; then
     SECRET_VAL=$(python3 - <<'PY'
@@ -401,9 +401,9 @@ SECRET_KEY=$SECRET_VAL
 EOF
   chmod 0600 "$CONFIG_FILE"
   chown root:root "$CONFIG_FILE"
-  echo "Archivo $CONFIG_FILE creado con permisos 600."
+  echo "File $CONFIG_FILE created with permissions 600."
 else
-  echo "Archivo de configuración $CONFIG_FILE ya existe; preservando SECRET_KEY existente."
+  echo "Configuration file $CONFIG_FILE already exists; preserving existing SECRET_KEY."
 fi
 
 if [ "${INSTALL_MODE:-system}" = "local" ]; then
@@ -414,7 +414,7 @@ if [ "${INSTALL_MODE:-system}" = "local" ]; then
     echo "SECRET_KEY=$SECRET_VAL" > "$CONFIG_FILE_USER"
     chmod 0600 "$CONFIG_FILE_USER"
     chown "$USER":"$USER" "$CONFIG_FILE_USER" || true
-    echo "Archivo de configuración local creado en $CONFIG_FILE_USER"
+    echo "Local configuration file created at $CONFIG_FILE_USER"
   fi
 fi
 
@@ -450,9 +450,9 @@ else
   echo "Instalación local: no se crea unidad systemd. Para ejecutar PiControl en modo local puedes lanzar: $REPO_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
 fi
 
-progress_update 80 "Inicializando base de datos y ajustando permisos..."
+progress_update 80 "Initializing database and adjusting permissions..."
 
-# Instalar y habilitar cleanup timer/service para borrar registros antiguos
+# Install and enable cleanup timer/service to delete old records
 CLEANUP_SERVICE_SRC="$REPO_DIR/install/cleanup_picontrol.service"
 CLEANUP_TIMER_SRC="$REPO_DIR/install/cleanup_picontrol.timer"
 if [ -f "$CLEANUP_SERVICE_SRC" ]; then
@@ -564,10 +564,10 @@ else
   echo "No se encontró usuario de escritorio (pi o UID 1000). Omitiendo acceso en Desktop."
 fi
 
-echo "Instalación completada. El servicio picontrol-firstboot está habilitado y se ejecutará en el siguiente arranque (o ya se lanzó)."
-echo "Si quieres desinstalar, borra los archivos instalados y deshabilita el servicio con: systemctl disable --now picontrol-firstboot.service"
+echo "Installation completed. The picontrol-firstboot service is enabled and will run on next boot (or has already been launched)."
+echo "If you want to uninstall, delete the installed files and disable the service with: systemctl disable --now picontrol-firstboot.service"
 
-progress_update 100 "Instalación completada."
+progress_update 100 "Installation completed."
 
 if use_gui; then
   # close progress (stdin->zenity via fd3 will exit when script exits)

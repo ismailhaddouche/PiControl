@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Script que ejecuta tareas de primer arranque para PiControl
-# Este script está pensado para ejecutarse por systemd en el arranque y debe ser idempotente.
+# Script that executes first boot tasks for PiControl
+# This script is designed to be run by systemd at boot and must be idempotent.
 
 set -euo pipefail
 

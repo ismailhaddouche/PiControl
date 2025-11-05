@@ -540,7 +540,7 @@ def admin_change_password(request: Request, new_password: str = Form(...), confi
 def admin_export_db(request: Request):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Ubicación relativa del archivo sqlite en el workspace (puede variar en despliegues)
+    # Relative location of the sqlite file in the workspace (may vary in deployments)
     db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "pi_control.db"))
     if not os.path.exists(db_path):
         request.session["flash"] = "Database file not found"
@@ -554,7 +554,7 @@ def admin_import_db(request: Request, file: UploadFile = File(...)):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     target_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "pi_control.db"))
     try:
-        # Guardar archivo subido en temporal y luego mover
+        # Save uploaded file to temporary location and then move
         tmp_path = target_path + ".upload_tmp"
         with open(tmp_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
