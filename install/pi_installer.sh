@@ -102,6 +102,30 @@ echo "Recargando systemd y habilitando picontrol.service..."
 systemctl daemon-reload
 systemctl enable --now picontrol.service || true
 
+# Inicializar la base de datos en /var/lib/picontrol/pi_control.db si no existe.
+# Si el repositorio está presente en ../ (cuando se ejecuta desde install/),
+# usaremos el venv ubicado en el repo para llamar a app.db.init_db().
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+VENV_PY="$REPO_DIR/.venv/bin/python"
+DB_PATH="/var/lib/picontrol/pi_control.db"
+if [ ! -f "$DB_PATH" ]; then
+  if [ -x "$VENV_PY" ]; then
+    echo "Inicializando BD en $DB_PATH usando venv en $REPO_DIR ..."
+    # Asegurar que el repo está en sys.path para que app.db importe correctamente
+    "$VENV_PY" -c "import sys; sys.path.insert(0, '$REPO_DIR'); from app.db import init_db; init_db()"
+    # Ajustar propiedad del archivo a SERVICE_USER si existe
+    chown "$SERVICE_USER":"$SERVICE_USER" "$DB_PATH" || true
+    echo "Base de datos inicializada y propiedad ajustada a $SERVICE_USER"
+  else
+    echo "No se encontró venv-python en $VENV_PY; creando fichero vacío $DB_PATH y ajustando permisos"
+    mkdir -p "$(dirname "$DB_PATH")"
+    touch "$DB_PATH"
+    chown "$SERVICE_USER":"$SERVICE_USER" "$DB_PATH" || true
+  fi
+else
+  echo "Base de datos ya existe en $DB_PATH"
+fi
+
 # Crear acceso en el escritorio del usuario principal (asumimos usuario con UID 1000 si existe)
 DESKTOP_USER=""
 if [ -n "$USER_ARG" ]; then
