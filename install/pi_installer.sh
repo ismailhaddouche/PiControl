@@ -133,6 +133,8 @@ check_and_install_deps() {
   dpkg -s libssl-dev >/dev/null 2>&1 || missing+=(libssl-dev)
   dpkg -s libffi-dev >/dev/null 2>&1 || missing+=(libffi-dev)
   dpkg -s python3-dev >/dev/null 2>&1 || missing+=(python3-dev)
+  # GUI dialogs (zenity) can be useful on RPi Desktop
+  dpkg -s zenity >/dev/null 2>&1 || missing+=(zenity)
 
   if [ ${#missing[@]} -eq 0 ]; then
     echo "Todas las dependencias del sistema están presentes."
