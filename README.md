@@ -1,29 +1,6 @@
 # PiControl
 A tailored Raspberry Pi app for worker clock-in/out registration using RFID.
 
-# 🚀 PiControl: Sistema de Fichaje RFID
-
-Este repositorio contiene el "cerebro" del software para **PiControl**, un sistema de registro de jornadas laborales basado en Raspberry Pi.
-
-Esta es la **Fase 1 (Software y Simulación)**. El proyecto se desarrolla 100% en un entorno simulado, sin necesidad de hardware.
-
-Utiliza **FastAPI** para una API de administración moderna y un script de Python independiente para **simular la lectura de tarjetas RFID** desde la terminal.
-
-## Funcionalidades
-**Panel de administracióm:** permite acceder mediante contrasela y usuario a la gestion de la aplicación y permite 
-   -Añadir quitar empleados.
-   -Asociar o disociar un usario de un llavero RFID
-   -Ver informes de entrada y salida de un trabajador en concreto.
-   -Ver informes de entrada y salida de un día concreto.
-   -Ver horas trabajadas de un trabajador concreto durante un periodo concreto.
-   -Sincronizar hora de la máquina.
-
-**Script en guardia:** Un script que esta atento a los cambios aplicados por el administrador y el lectro de rfid:
-    -Si es la entrada del usuario comprueba y registrada entrada de usuario. Dando un mensaje de bienvenida.
-    -Si es la salida del usuario comprueba y registra salida del usuario. Dando un mensaje de despedida.
-    -Si falla la salida o entrada lo indica con un mensaje.
-# PiControl
-
 **Autor:** hismardev
 
 ## Resumen
