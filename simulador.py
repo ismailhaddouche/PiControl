@@ -1,8 +1,8 @@
-"""Simulador del lector RFID (CLI).
+"""RFID reader simulator (CLI).
 
-Lee `rfid_uid` por línea, envía un POST a la API `/fichajes/` y muestra el mensaje
-devuelto (nombre del empleado y mensaje de bienvenida/despedida). Implementa
-reintentos en caso de fallo de conexión.
+Reads `rfid_uid` per line, sends a POST to the API `/checkins/` and shows the message
+returned (employee name and welcome/goodbye message). Implements
+retries in case of connection failure.
 """
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ from typing import Optional
 
 import httpx
 
-API_URL = "http://127.0.0.1:8000/fichajes/"
+API_URL = "http://127.0.0.1:8000/checkins/"
 
 
-def enviar_fichaje(rfid: str, api_url: str = API_URL, retries: int = 3, timeout: float = 5.0) -> Optional[dict]:
-    """Envía el rfid a la API y devuelve el JSON si OK, o None si falla.
+def send_checkin(rfid: str, api_url: str = API_URL, retries: int = 3, timeout: float = 5.0) -> Optional[dict]:
+    """Sends the rfid to the API and returns the JSON if OK, or None if it fails.
 
     Reintenta `retries` veces en errores de conexión.
     """
@@ -33,50 +33,50 @@ def enviar_fichaje(rfid: str, api_url: str = API_URL, retries: int = 3, timeout:
         except (httpx.ConnectError, httpx.ReadTimeout) as e:
             attempt += 1
             wait = 0.5 * attempt
-            print(f"Fallo conexión (intento {attempt}/{retries}): {e}. Reintentando en {wait}s...")
+            print(f"Connection failed (attempt {attempt}/{retries}): {e}. Retrying in {wait}s...")
             time.sleep(wait)
         except Exception as e:
-            print("Error inesperado al conectar con la API:", e)
+            print("Unexpected error connecting to API:", e)
             return None
 
-    print("No se pudo conectar con la API tras varios intentos.")
+    print("Could not connect to API after several attempts.")
     return None
 
 
 def main():
     api_url = API_URL
-    # permitir pasar URL por argumento
+    # allow passing URL as argument
     if len(sys.argv) > 1:
         api_url = sys.argv[1]
-    print("Simulador RFID - escribe 'salir' para terminar. Usando API:", api_url)
+    print("RFID Simulator - type 'exit' to quit. Using API:", api_url)
     while True:
         try:
-            rfid = input("Pasa una tarjeta (rfid_uid): ").strip()
+            rfid = input("Swipe a card (rfid_uid): ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\nSaliendo")
+            print("\nExiting")
             return
         if not rfid:
             continue
-        if rfid.lower() in ("salir", "exit"):
-            print("Saliendo")
+        if rfid.lower() in ("exit", "quit"):
+            print("Exiting")
             return
 
-        data = enviar_fichaje(rfid, api_url=api_url)
+        data = send_checkin(rfid, api_url=api_url)
         if not data:
-            # ya se imprimió el error en enviar_fichaje
+            # error already printed in send_checkin
             continue
 
-        # data esperado: {id, empleado_id, empleado_nombre, tipo, timestamp, mensaje}
-        empleado_nombre = data.get("empleado_nombre") or data.get("empleado_nombre")
-        tipo = data.get("tipo")
-        mensaje = data.get("mensaje")
+        # expected data: {id, employee_id, employee_name, type, timestamp, message}
+        employee_name = data.get("employee_name") or data.get("employee_name")
+        checkin_type = data.get("type")
+        message = data.get("message")
         ts = data.get("timestamp")
 
-        if empleado_nombre:
-            print(f"{mensaje} (empleado: {empleado_nombre}) [{tipo}] - {ts}")
+        if employee_name:
+            print(f"{message} (employee: {employee_name}) [{checkin_type}] - {ts}")
         else:
-            # Si no viene nombre, mostrar id
-            print(f"{mensaje or 'OK'} (empleado_id={data.get('empleado_id')}) [{tipo}] - {ts}")
+            # If no name provided, show id
+            print(f"{message or 'OK'} (employee_id={data.get('employee_id')}) [{checkin_type}] - {ts}")
 
 
 if __name__ == "__main__":

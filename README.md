@@ -1,162 +1,164 @@
 # PiControl
 A tailored Raspberry Pi app for worker clock-in/out registration using RFID.
 
-**Autor:** hismardev
+**Author:** hismardev
 
-## Resumen
+## Summary
 
-PiControl es una aplicación ligera pensada para ejecutar en una Raspberry Pi y gestionar fichajes de entrada/salida
-de personal mediante lectores RFID. Proporciona una API de administración (FastAPI), una interfaz web para el administrador,
-un simulador para probar fichajes sin hardware y utilidades para instalación y recuperación en un dispositivo físico.
+PiControl is a lightweight application designed to run on a Raspberry Pi and manage employee check-in/check-out
+records using RFID readers. It provides an administration API (FastAPI), a web interface for administrators,
+a simulator to test check-ins without hardware, and utilities for installation and recovery on a physical device.
 
-Este repositorio contiene la lógica del servidor, los modelos de datos, plantillas HTML y scripts de instalación pensados
-para desplegar PiControl en una Raspberry Pi o en un entorno de desarrollo local.
+This repository contains the server logic, data models, HTML templates, and installation scripts designed
+to deploy PiControl on a Raspberry Pi or in a local development environment.
 
-## Tecnologías y stack utilizado
+## Technologies and Stack Used
 
-- **Lenguaje:** Python 3.10+ / 3.11+
-- **Web framework:** FastAPI (endpoints REST, plantillas Jinja2)
-- **Servidor ASGI:** Uvicorn
-- **ORM / modelos:** SQLModel (SQLAlchemy)
-- **Base de datos:** SQLite (archivo `pi_control.db`)
-- **Autenticación:** sesiones Starlette + hashing de contraseñas (passlib pbkdf2_sha256)
-- **Plantillas:** Jinja2
-- **Frontend ligero:** HTML/CSS y JavaScript para llamadas AJAX
+- **Language:** Python 3.10+ / 3.11+
+- **Web framework:** FastAPI (REST endpoints, Jinja2 templates)
+- **ASGI Server:** Uvicorn
+- **ORM / Models:** SQLModel (SQLAlchemy)
+- **Database:** SQLite (`pi_control.db` file)
+- **Authentication:** Starlette sessions + password hashing (passlib pbkdf2_sha256)
+- **Templates:** Jinja2
+- **Lightweight Frontend:** HTML/CSS and JavaScript for AJAX calls
 - **Tests:** pytest + httpx TestClient
 
-El proyecto evita dependencias pesadas para facilitar la instalación en Raspberry Pi y entornos con recursos limitados.
+The project avoids heavy dependencies to facilitate installation on Raspberry Pi and resource-limited environments.
 
-## Requisitos
+## Requirements
 
-- Raspberry Pi (opcional para despliegue real) o cualquier Linux para desarrollo.
-- Python 3.10+ instalado.
-- Acceso con privilegios root para instalar servicios systemd (si procede).
+- Raspberry Pi (optional for real deployment) or any Linux for development.
+- Python 3.10+ installed.
+- Root privileges access to install systemd services (if applicable).
 
-## Instalación (local / desarrollo)
+## Installation (local / development)
 
-1. Clona el repositorio y entra en la carpeta:
+1. Clone the repository and enter the folder:
 
 ```bash
 git clone https://github.com/ismailhaddouche/PiControl.git
 cd PiControl
 ```
 
-2. Crea y activa un entorno virtual:
+2. Create and activate a virtual environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-3. Instala dependencias:
+3. Install dependencies:
 
 ```bash
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. Inicializa y arranca la API (en desarrollo puedes usar el reload):
+4. Initialize and start the API (in development you can use reload):
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-5. Abre el navegador en `http://127.0.0.1:8000/admin` para acceder a la UI de administración.
+5. Open the browser at `http://127.0.0.1:8000/admin` to access the administration UI.
 
-## Instalación en Raspberry Pi (automática desde GitHub)
+## Raspberry Pi Installation (automatic from GitHub)
 
-El repositorio incluye utilidades para instalar directamente desde GitHub y preparar la Pi:
+The repository includes utilities to install directly from GitHub and prepare the Pi:
 
-- `install/install_from_github.sh`: clona (o actualiza) el repo en `/opt/picontrol`, crea un virtualenv, instala dependencias y ejecuta el instalador local.
-- `install/pi_installer.sh`: instalador que guarda el `machine-id`, instala scripts en `/usr/local/bin`, crea un servicio systemd `picontrol-firstboot.service` y crea un acceso `.desktop` para el usuario de escritorio.
+- `install/install_from_github.sh`: clones (or updates) the repo in `/opt/picontrol`, creates a virtualenv, installs dependencies, and runs the local installer.
+- `install/pi_installer.sh`: installer that saves the `machine-id`, installs scripts in `/usr/local/bin`, creates a systemd service `picontrol-firstboot.service`, and creates a `.desktop` access for the desktop user.
 
-Ejemplo de uso en la Raspberry Pi (ejecutar como root):
+Example usage on Raspberry Pi (run as root):
 
 ```bash
 sudo bash install/install_from_github.sh https://github.com/ismailhaddouche/PiControl.git main --user pi
 ```
 
-Notas importantes:
-- Revisa los scripts antes de ejecutarlos como root. El instalador coloca archivos en `/opt`, `/usr/local/bin` y crea/activa servicios systemd.
-- El instalador guarda `/etc/machine-id` en `/var/lib/picontrol/machine-id` para permitir que el script de reseteo de administrador sólo se ejecute en la misma máquina.
+Important notes:
+- Review the scripts before running them as root. The installer places files in `/opt`, `/usr/local/bin` and creates/activates systemd services.
+- The installer saves `/etc/machine-id` to `/var/lib/picontrol/machine-id` to allow the admin reset script to only run on the same machine.
 
-## Configuración
+## Configuration
 
-- **Primer arranque / setup:** el proyecto incluye una pantalla de setup (`/admin/setup`) que permite crear el primer usuario administrador si no existe uno.
-- **Cambio de contraseña admin:** desde la UI de `Configuración` puedes cambiar la contraseña del admin.
-- **Zona horaria:** la UI de configuración permite seleccionar una zona horaria y el servidor intenta aplicar `timedatectl` (requiere privilegios).
-- **Exportar/importar BD:** desde la configuración puedes descargar el archivo `pi_control.db` o subir una copia para reemplazar la base de datos (se recomienda reiniciar tras importar).
+- **First boot / setup:** the project includes a setup screen (`/admin/setup`) that allows creating the first administrator user if none exists.
+- **Admin password change:** from the `Configuration` UI you can change the admin password.
+- **Time zone:** the configuration UI allows selecting a time zone and the server attempts to apply `timedatectl` (requires privileges).
+- **Export/import DB:** from the configuration you can download the `pi_control.db` file or upload a copy to replace the database (restart recommended after import).
 
-Seguridad y recuperación:
-- Se incluye `tools/picontrol-reset-admin.sh` y `tools/reset_admin.py` para recuperar el acceso admin en la misma Raspberry Pi. El flujo verifica el `machine-id` guardado para evitar restablecimientos desde otro equipo.
-- El script de reset genera una contraseña segura y la guarda en `/var/lib/picontrol/reset_password.txt` con permisos 600. Se recomienda rotarla o eliminarla tras su uso.
+Security and recovery:
+- Includes `tools/picontrol-reset-admin.sh` and `tools/reset_admin.py` to recover admin access on the same Raspberry Pi. The flow verifies the saved `machine-id` to prevent resets from another device.
+- The reset script generates a secure password and saves it to `/var/lib/picontrol/reset_password.txt` with permissions 600. It's recommended to rotate or delete it after use.
 
-## Uso básico
+## Basic Usage
 
-- Añadir empleados, asignar RFID y gestionar fichajes se realiza desde la UI de administración (`/admin`).
-- Para simular fichajes sin lector RFID físico, ejecuta `python simulador.py` en una terminal y escribe el `rfid_uid` que desees simular.
+- Adding employees, assigning RFID, and managing check-ins is done from the administration UI (`/admin`).
+- To simulate check-ins without a physical RFID reader, run `python simulador.py` in a terminal and type the `rfid_uid` you want to simulate.
 
-Endpoints habituales:
+Common endpoints:
 
-- `GET /admin` — panel principal (requiere login)
-- `POST /admin/empleados` — crear/actualizar empleado
-- `POST /admin/fichajes/manual` — crear fichaje manual
-- `GET /admin/fichajes` — ver histórico
+- `GET /admin` — main panel (requires login)
+- `POST /employees/` — create new employee
+- `GET /employees/` — list all employees
+- `PUT /employees/{id}/rfid` — assign/update RFID
+- `DELETE /employees/{id}` — delete employee (archive)
+- `POST /employees/{id}/restore` — restore archived employee
 
-## Estructura del proyecto
+## Project Structure
 
-Raíz del proyecto y propósito de los archivos/directorios más relevantes:
+Root of the project and purpose of the most relevant files/directories:
 
-- `app/` — código principal de la aplicación
-  - `main.py` — punto de entrada FastAPI y configuración middleware
-  - `models.py` — modelos SQLModel (Empleado, Fichaje, Usuario, Config)
-  - `crud.py` — funciones de acceso a datos y lógica (crear empleado, fichajes, archive/restore, config)
-  - `db.py` — utilidades de conexión/engine de SQLite
-  - `routers/` — rutas web/API organizadas (empleados, fichajes, web)
-  - `templates/` — plantillas Jinja2 para interfaz web
-  - `static/` — CSS/JS estático para la UI
+- `app/` — main application code
+  - `main.py` — FastAPI entry point and middleware configuration
+  - `models.py` — SQLModel models (Employee, CheckIn, User, Config)
+  - `crud.py` — data access functions and logic (create employee, check-ins, archive/restore, config)
+  - `db.py` — SQLite connection/engine utilities
+  - `routers/` — organized web/API routes (employees, checkins, web)
+  - `templates/` — Jinja2 templates for web interface
+  - `static/` — static CSS/JS for the UI
 
-- `simulador.py` — script que simula la lectura de tarjetas RFID (modo desarrollo)
-- `pi_control.db` — archivo SQLite (generado en ejecución)
-- `install/` — scripts de instalación y servicio systemd
-  - `install_from_github.sh` — clonador/instalador desde GitHub
-  - `pi_installer.sh` — instalador local que configura servicio / scripts
-  - `picontrol-firstboot.service` — unidad systemd de primer arranque
-- `tools/` — scripts de utilidad
-  - `picontrol-reset-admin.sh` — wrapper que valida machine-id y lanza el reset
-  - `reset_admin.py` — script Python que crea o resetea la cuenta admin
+- `simulador.py` — script that simulates RFID card reading (development mode)
+- `pi_control.db` — SQLite file (generated at runtime)
+- `install/` — installation scripts and systemd service
+  - `install_from_github.sh` — cloner/installer from GitHub
+  - `pi_installer.sh` — local installer that configures service / scripts
+  - `picontrol-firstboot.service` — systemd first boot unit
+- `tools/` — utility scripts
+  - `picontrol-reset-admin.sh` — wrapper that validates machine-id and launches reset
+  - `reset_admin.py` — Python script that creates or resets admin account
 
-- `tests/` — pruebas automatizadas (pytest)
-- `requirements.txt` — dependencias Python
-- `README.md` — este fichero
+- `tests/` — automated tests (pytest)
+- `requirements.txt` — Python dependencies
+- `README.md` — this file
 
 ## Tests
 
-Ejecuta las pruebas con:
+Run tests with:
 
 ```bash
 source .venv/bin/activate
 pytest -q
 ```
 
-## Contribuir
+## Contributing
 
-Si quieres contribuir, abre un issue o un pull request. Revisa las convenciones de estilo y añade pruebas para cambios relevantes.
+If you want to contribute, open an issue or pull request. Review style conventions and add tests for relevant changes.
 
-## Licencia
+## License
 
-Este proyecto se distribuye bajo la licencia GNU General Public License v3.0 (GPL-3.0).
+This project is distributed under the GNU General Public License v3.0 (GPL-3.0).
 
-Resumen rápido (no sustituye la lectura del texto completo):
+Quick summary (does not replace reading the full text):
 
-- Puedes usar, copiar y distribuir este software gratis.
-- Si publicas o distribuyes una versión modificada del código, debes hacerlo bajo la misma licencia (GPL-3.0). Esto significa que las modificaciones deben estar disponibles también como software libre y con los mismos términos.
-- Consulta el fichero `LICENSE` para el texto completo de la GPL-3.0 y detalles legales.
+- You can use, copy and distribute this software for free.
+- If you publish or distribute a modified version of the code, you must do so under the same license (GPL-3.0). This means modifications must also be available as free software under the same terms.
+- See the `LICENSE` file for the full text of GPL-3.0 and legal details.
 
-Si incluyes este proyecto dentro de otro producto (por ejemplo, redistribuyendo binarios o incorporándolo en una imagen), asegúrate de cumplir las obligaciones de la GPL-3.0 (incluir avisos de licencia y proporcionar el código fuente de las modificaciones bajo GPL-3.0).
+If you include this project within another product (e.g., redistributing binaries or incorporating it into an image), make sure to comply with GPL-3.0 obligations (include license notices and provide source code of modifications under GPL-3.0).
 
 SPDX: MIT -> GPL-3.0-or-later
 
 ---
 
-Si quieres que añada una sección con comandos rápidos de administración (p. ej. cómo reiniciar el servicio, ver logs o forzar migraciones), dímelo y la incluyo.
+If you want me to add a section with quick administration commands (e.g. how to restart the service, view logs or force migrations), let me know and I'll include it.

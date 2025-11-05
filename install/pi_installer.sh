@@ -330,6 +330,28 @@ if [ "${INSTALL_MODE:-system}" = "local" ]; then
   install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "$HOME/.local/bin/picontrol-firstboot-gui.sh" || true
 fi
 
+# --- Privilegios delegados para reiniciar (system install) ---
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  # Crear grupo limitado para admins de picontrol
+  if ! getent group picontrol-admins >/dev/null 2>&1; then
+    echo "Creando grupo 'picontrol-admins'..."
+    groupadd --system picontrol-admins || true
+  fi
+  # Añadir el usuario del servicio al grupo para permitir reinicios sin contraseña
+  if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    usermod -aG picontrol-admins "$SERVICE_USER" || true
+  fi
+
+  # Crear una entrada sudoers específica y segura para permitir reinicios sin contraseña
+  SUDOERS_FILE="/etc/sudoers.d/picontrol"
+  cat > "$SUDOERS_FILE" <<'SUDO'
+# Permitir a miembros de picontrol-admins reiniciar los servicios de PiControl sin contraseña
+%picontrol-admins ALL=(root) NOPASSWD: /usr/local/bin/picontrol-restart.sh
+SUDO
+  chmod 0440 "$SUDOERS_FILE" || true
+  echo "Archivo sudoers creado en $SUDOERS_FILE (permite ejecutar /usr/local/bin/picontrol-restart.sh sin contraseña para el grupo picontrol-admins)."
+fi
+
 progress_update 60 "Instalando servicios systemd y configurando unidades..."
 
 echo "Instalando servicio systemd..."

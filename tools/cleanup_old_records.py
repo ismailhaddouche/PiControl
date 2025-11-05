@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Limpiar fichajes y empleados antiguos.
+"""Cleanup old check-ins and employees.
 
-Por defecto elimina fichajes con más de 4 años + 1 día de antigüedad.
-Opcionalmente puede eliminar empleados archivados con archived_at antiguo y/o empleados
-inactivos (sin fichajes recientes) si se pasa --delete-employees.
+By default deletes check-ins older than 4 years + 1 day.
+Optionally deletes archived employees with old archived_at or inactive employees
+(no recent check-ins) when --delete-employees is provided.
 
-Hace un backup de la base de datos antes de modificarla.
+Creates a backup of the database before modifying it.
 """
 from __future__ import annotations
 import argparse
@@ -14,7 +14,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from sqlmodel import Session, select
 from app.db import get_engine
-from app.models import Empleado, Fichaje
+from app.models import Employee, CheckIn
 
 
 DEFAULT_DB_DIR = os.environ.get("PICONTROL_DB_DIR", "/var/lib/picontrol")
@@ -31,7 +31,7 @@ def backup_db(db_path: str, backup_dir: str) -> str:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Cleanup old records (fichajes/empleados) in PiControl DB")
+    p = argparse.ArgumentParser(description="Cleanup old records (check-ins/employees) in PiControl DB")
     p.add_argument("--days", type=int, default=4 * 365 + 1,
                    help="Age in days to consider for deletion (default 4 years + 1 day)")
     p.add_argument("--delete-employees", action="store_true",
@@ -62,43 +62,43 @@ def main():
     # Note: get_engine uses PICONTROL_DB_DIR default; ensure it points to args.db_path location if overriden
     # If the engine points elsewhere, user should set PICONTROL_DB_DIR env var when running.
 
-    to_delete_empleados = []
-    deleted_fichajes = 0
+    to_delete_employees = []
+    deleted_checkins = 0
 
     with Session(engine) as session:
-        # Delete fichajes older than cutoff
-        stmt = select(Fichaje).where(Fichaje.timestamp <= cutoff)
-        old_fichajes = session.exec(stmt).all()
-        print(f"Found {len(old_fichajes)} fichajes older than cutoff")
+        # Delete check-ins older than cutoff
+        stmt = select(CheckIn).where(CheckIn.timestamp <= cutoff)
+        old_checkins = session.exec(stmt).all()
+        print(f"Found {len(old_checkins)} check-ins older than cutoff")
         if not args.dry_run:
-            for f in old_fichajes:
+            for f in old_checkins:
                 session.delete(f)
             session.commit()
-            deleted_fichajes = len(old_fichajes)
+            deleted_checkins = len(old_checkins)
 
         if args.delete_employees:
-            empleados = session.exec(select(Empleado)).all()
-            for e in empleados:
+            employees = session.exec(select(Employee)).all()
+            for e in employees:
                 remove = False
                 reason = None
                 if e.archived_at is not None and e.archived_at <= cutoff:
                     remove = True
                     reason = f"archived_at {e.archived_at} <= cutoff"
                 else:
-                    # check last fichaje
-                    last_stmt = select(Fichaje).where(Fichaje.empleado_id == e.dni).order_by(Fichaje.timestamp.desc())
+                    # check last check-in
+                    last_stmt = select(CheckIn).where(CheckIn.employee_id == e.document_id).order_by(CheckIn.timestamp.desc())
                     last = session.exec(last_stmt).first()
                     if not last or last.timestamp <= cutoff:
                         remove = True
-                        reason = f"last_fichaje {getattr(last, 'timestamp', None)} <= cutoff or none"
+                        reason = f"last_checkin {getattr(last, 'timestamp', None)} <= cutoff or none"
 
                 if remove:
-                    to_delete_empleados.append((e, reason))
+                    to_delete_employees.append((e, reason))
 
-            print(f"Found {len(to_delete_empleados)} empleados to delete (delete_employees=True)")
+            print(f"Found {len(to_delete_employees)} employees to delete (delete_employees=True)")
             if not args.dry_run:
-                for e, reason in to_delete_empleados:
-                    print(f"Deleting empleado {e.dni} ({e.nombre}): {reason}")
+                for e, reason in to_delete_employees:
+                    print(f"Deleting employee {e.document_id} ({e.name}): {reason}")
                     session.delete(e)
                 session.commit()
 
@@ -106,7 +106,7 @@ def main():
     if args.dry_run:
         print("Dry-run mode, no changes were made.")
     else:
-        print(f"Deleted fichajes: {deleted_fichajes}; Deleted empleados: {len(to_delete_empleados)}")
+        print(f"Deleted check-ins: {deleted_checkins}; Deleted employees: {len(to_delete_employees)}")
 
 
 if __name__ == "__main__":

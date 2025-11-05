@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Picontrol restart helper
-# Reinicia los servicios de la aplicación PiControl y muestra salida básica.
+# Restart PiControl services and print basic output.
 
 set -euo pipefail
 
@@ -16,18 +16,18 @@ fi
 
 echo "User-level service not found. Attempting system-level restart (may require root)."
 if systemctl is-active --quiet "$SVC"; then
-  systemctl restart "$SVC" && echo "$SVC reiniciado." || echo "Fallo al reiniciar $SVC"
+  systemctl restart "$SVC" && echo "$SVC restarted." || echo "Failed to restart $SVC"
 else
-  echo "$SVC no estaba activo; intentando start & enable"
-  systemctl enable --now "$SVC" && echo "$SVC iniciado y habilitado." || echo "Fallo al iniciar $SVC"
+  echo "$SVC was not active; attempting start & enable"
+  systemctl enable --now "$SVC" && echo "$SVC started and enabled." || echo "Failed to start $SVC"
 fi
 
 if systemctl list-units --full -all | grep -q "${CLEANUP_TIMER}"; then
-  echo "Recargando y reiniciando timer $CLEANUP_TIMER..."
+  echo "Reloading and enabling timer $CLEANUP_TIMER..."
   systemctl daemon-reload || true
-  systemctl enable --now "$CLEANUP_TIMER" && echo "$CLEANUP_TIMER habilitado." || echo "Fallo al habilitar $CLEANUP_TIMER"
+  systemctl enable --now "$CLEANUP_TIMER" && echo "$CLEANUP_TIMER enabled." || echo "Failed to enable $CLEANUP_TIMER"
 fi
 
-echo "Operación completada. Comprueba el estado con: systemctl status $SVC"
+echo "Operation completed. Check status with: systemctl status $SVC"
 
 exit 0

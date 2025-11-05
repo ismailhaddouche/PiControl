@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Script para resetear/crear usuario administrador de PiControl.
+"""Script to reset/create the PiControl administrator account.
 
-Comportamiento:
-- Verifica que se ejecute localmente (se asume llamada desde el wrapper que ya comprobó machine-id).
-- Si existe algún administrador, le cambia la contraseña a una generada aleatoria y la escribe en
-  /var/lib/picontrol/reset_password.txt con permisos 600.
-- Si no existe admin, crea uno llamado 'admin' con contraseña generada y guarda la contraseña.
+Behavior:
+- Assumes it's run locally (the wrapper verifies machine-id).
+- If an admin exists, it changes the password to a newly generated one and prints the
+    credentials to stdout by default (or writes to /var/lib/picontrol/reset_password.txt when
+    PICONTROL_ALLOW_PERSISTENT_RESET is enabled).
+- If no admin exists, it creates an 'admin' user with a generated password and prints it.
 """
 import os
 import secrets
 from sqlmodel import Session
 from app.db import get_engine
-from app.crud import get_user_by_username, any_admin_exists, create_user, change_user_password
+from app.crud import any_admin_exists, get_user, create_user, update_user_password
 
 
 def generate_password(n=12):
@@ -31,7 +32,7 @@ def save_password(path: str, username: str, password: str):
         with open(path, "w") as f:
             f.write(f"username:{username}\npassword:{password}\n")
         os.chmod(path, 0o600)
-        print(f"Credenciales escritas en: {path} (PICONTROL_ALLOW_PERSISTENT_RESET habilitado)")
+        print(f"Credentials written to: {path} (PICONTROL_ALLOW_PERSISTENT_RESET enabled)")
         return
 
     # Default behaviour: print to stdout and instruct operator to copy/store securely.
@@ -39,7 +40,7 @@ def save_password(path: str, username: str, password: str):
     print(f"username: {username}")
     print(f"password: {password}")
     print("=================================================")
-    print("Nota: por seguridad no se ha guardado la contraseña en disco. Si necesitas persistirla temporariamente, exporta PICONTROL_ALLOW_PERSISTENT_RESET=1 y vuelve a ejecutar")
+    print("Note: for security the password has not been stored on disk. If you need a temporary file, set PICONTROL_ALLOW_PERSISTENT_RESET=1 and re-run")
 
 
 def main():
@@ -50,34 +51,34 @@ def main():
 
     with Session(engine) as session:
         if any_admin_exists(session):
-            # si existe el admin con username 'admin', cambiar contraseña
-            user = get_user_by_username(session, username)
+            # if an admin with username 'admin' exists, change its password
+            user = get_user(session, username)
             if user:
-                changed = change_user_password(session, username, pwd, performed_by="reset_admin_script")
+                changed = update_user_password(session, username, pwd, performed_by="reset_admin_script")
                 if changed:
                     save_password(out_file, username, pwd)
-                    print(f"Contraseña del usuario '{username}' actualizada.")
+                    print(f"Password for user '{username}' updated.")
                     print(f"Saved password info to {out_file}")
                     return
-            # Si hay admins pero no 'admin', intentar cambiar la contraseña 'admin' como fallback
+            # If there are admins but no 'admin', try changing 'admin' password as fallback
             try:
-                changed = change_user_password(session, username, pwd, performed_by="reset_admin_script")
+                changed = update_user_password(session, username, pwd, performed_by="reset_admin_script")
                 if changed:
                     save_password(out_file, username, pwd)
-                    print(f"Contraseña del usuario '{username}' actualizada (fallback).")
+                    print(f"Password for user '{username}' updated (fallback).")
                     print(f"Saved password info to {out_file}")
                     return
             except Exception:
-                # último recurso: crear admin 'admin'
+                # last resort: create admin 'admin'
                 create_user(session, username=username, password=pwd, is_admin=True, performed_by="reset_admin_script")
                 save_password(out_file, username, pwd)
-                print(f"Se creó usuario admin '{username}'. Contraseña guardada en {out_file}")
+                print(f"Admin user '{username}' created. Password saved to {out_file}")
                 return
 
-        # no hay admin: crear uno nuevo
-        create_user(session, username=username, password=pwd, is_admin=True, performed_by="reset_admin_script")
-        save_password(out_file, username, pwd)
-        print(f"Usuario admin '{username}' creado. Contraseña guardada en {out_file}")
+        # no admin: create a new one
+    create_user(session, username=username, password=pwd, is_admin=True, performed_by="reset_admin_script")
+    save_password(out_file, username, pwd)
+    print(f"Admin user '{username}' created. Password saved to {out_file}")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ SCRIPT="/usr/local/bin/picontrol-rotate-secret.sh"
 has() { command -v "$1" >/dev/null 2>&1; }
 
 if has zenity; then
-  if ! zenity --question --title="Rotate SECRET_KEY" --text="¿Desea regenerar la SECRET_KEY de PiControl en esta máquina?"; then
+  if ! zenity --question --title="Rotate SECRET_KEY" --text="Do you want to regenerate the PiControl SECRET_KEY on this machine?"; then
     exit 0
   fi
 fi
@@ -17,7 +17,7 @@ if has pkexec; then
   pkexec "$SCRIPT"
 else
   if command -v x-terminal-emulator >/dev/null 2>&1; then
-    x-terminal-emulator -e bash -lc "sudo $SCRIPT; echo; read -p 'Presiona Enter para cerrar...';"
+    x-terminal-emulator -e bash -lc "sudo $SCRIPT; echo; read -p 'Press Enter to close...';"
   else
     sudo "$SCRIPT"
   fi

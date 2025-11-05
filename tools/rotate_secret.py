@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Regenera la SECRET_KEY para PiControl y la escribe en /etc/default/picontrol.
+"""Regenerate the SECRET_KEY for PiControl and write it to /etc/default/picontrol.
 
-Por motivos de seguridad este script ya NO guarda por defecto una copia persistente
-de la clave en `/var/lib/picontrol/secret_key.txt`. Imprime la nueva clave por stdout
-y solo crea una copia si se pasa --backup.
+For security this script does NOT persistently store a copy of the key in
+`/var/lib/picontrol/secret_key.txt` by default. It prints the new key to stdout
+and only creates a backup file when --backup is provided.
 
-Este comportamiento evita ficheros con secretos en disco.
+This avoids leaving secret files on disk by default.
 """
 import argparse
 import os
@@ -50,9 +50,9 @@ def save_copy(secret):
 def restart_service():
     try:
         subprocess.run(["systemctl", "restart", "picontrol.service"], check=True)
-        print("picontrol.service reiniciado correctamente.")
+        print("picontrol.service restarted successfully.")
     except subprocess.CalledProcessError as e:
-        print("Advertencia: fallo al reiniciar picontrol.service:", e)
+        print("Warning: failed to restart picontrol.service:", e)
 
 
 def main():
@@ -64,13 +64,13 @@ def main():
     write_config(secret)
 
     # Print the new secret to stdout so the operator can copy it (one-time)
-    print("=== Nueva SECRET_KEY (única salida) ===")
+    print("=== New SECRET_KEY (one-time output) ===")
     print(secret)
     print("======================================")
 
     if args.backup:
         save_copy(secret)
-        print(f"Copia de seguridad escrita en {OUT_FILE}")
+        print(f"Backup copy written to {OUT_FILE}")
 
     restart_service()
 

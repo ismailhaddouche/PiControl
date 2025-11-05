@@ -19,12 +19,12 @@ def init_db():
     except Exception:
         pass
     SQLModel.metadata.create_all(engine)
-    # Debug: listar tablas creadas (ayuda en tests)
+    # Debug: list created tables (helpful for tests)
     try:
         with engine.connect() as conn:
             res = conn.exec("SELECT name FROM sqlite_master WHERE type='table';")
             tables = [row[0] for row in res.fetchall()]
-            print("[init_db] tablas en la BD:", tables)
+            print("[init_db] tables in DB:", tables)
     except Exception:
         pass
 
@@ -33,9 +33,15 @@ def get_engine():
     return engine
 
 
-# Crear la base de datos y tablas al importar este módulo para entornos de test/ejecución
+def get_session():
+    from sqlmodel import Session
+    with Session(engine) as session:
+        yield session
+
+
+# Create the database and tables when importing this module for test/execution environments
 try:
     init_db()
 except Exception:
-    # si algo falla aquí, lo dejamos para que la inicialización explícita lo maneje
+    # if something fails here, let explicit initialization handle it
     pass

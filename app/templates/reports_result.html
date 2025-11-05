@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 
-{% block title %}Reporte de Horas{% endblock %}
+{% block title %}Hours Report{% endblock %}
 
 {% block content %}
-  <h2>Horas trabajadas - Empleado {{ empleado_id }}</h2>
-  <p>Periodo: {{ start or '—' }} — {{ end or '—' }}</p>
-  <h3>Horas por día</h3>
+  <h2>Hours worked - Employee {{ empleado_id }}</h2>
+  <p>Period: {{ start or '—' }} — {{ end or '—' }}</p>
+  <h3>Hours per day</h3>
   {% if per_day and per_day|length > 0 %}
     <table class="table">
-      <thead><tr><th>Fecha</th><th>Horas (decimal)</th></tr></thead>
+      <thead><tr><th>Date</th><th>Hours (decimal)</th></tr></thead>
       <tbody>
         {% for day, hrs in per_day %}
           <tr>
@@ -22,6 +22,6 @@
       </tfoot>
     </table>
   {% else %}
-    <p>No hay periodos para el rango seleccionado.</p>
+    <p>No periods for the selected range.</p>
   {% endif %}
 {% endblock %}

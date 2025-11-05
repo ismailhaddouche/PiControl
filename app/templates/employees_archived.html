@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Archived Employees{% endblock %}
+
+{% block content %}
+  <h2>Archived Employees</h2>
+  <p><a href="/admin/employees">Back to Employees</a></p>
+  {% if employees and employees|length > 0 %}
+    <table class="table">
+      <thead><tr><th>ID</th><th>Name</th><th>Archived at</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for e in employees %}
+          <tr>
+            <td>{{ e.document_id }}</td>
+            <td>{{ e.name }}</td>
+            <td>{{ e.archived_at|format_datetime if e.archived_at }}</td>
+            <td>
+              <a class="btn" href="/admin/employees/{{ e.document_id }}/historial">View history</a>
+              <form method="post" action="/admin/employees/{{ e.document_id }}/restore" style="display:inline">
+                <button type="submit" class="btn">Restore</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No archived employees.</p>
+  {% endif %}
+{% endblock %}

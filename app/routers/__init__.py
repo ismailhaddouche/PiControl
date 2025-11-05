@@ -1,3 +1,3 @@
-from . import empleados, fichajes
+from . import employees, checkins
 
-__all__ = ["empleados", "fichajes"]
+__all__ = ["employees", "checkins"]

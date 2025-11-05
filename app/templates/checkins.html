@@ -1,29 +1,29 @@
 {% extends 'base.html' %}
 
-{% block title %}Histórico de fichajes{% endblock %}
+{% block title %}Check-in History{% endblock %}
 
 {% block content %}
-  <h2>Histórico de fichajes</h2>
+  <h2>Check-in History</h2>
 
-  <!-- Formulario de filtros -->
+  <!-- Filters form -->
   <section class="filters">
     <form method="get" action="/admin/fichajes" class="filters-form">
-      <label for="start">Desde (fecha y hora):</label>
+      <label for="start">From (date and time):</label>
       <input id="start" name="start" type="datetime-local" value="{{ filter.start if filter.start }}" />
 
-      <label for="end">Hasta (fecha y hora):</label>
+      <label for="end">To (date and time):</label>
       <input id="end" name="end" type="datetime-local" value="{{ filter.end if filter.end }}" />
 
-      <label for="empleado_sel">Empleado:</label>
+      <label for="empleado_sel">Employee:</label>
       <select id="empleado_sel" name="empleado_id">
-        <option value="">-- Todos --</option>
-        {% for e in empleados %}
-          <option value="{{ e.dni }}" {% if filter.empleado_id and filter.empleado_id == e.dni %}selected{% endif %}>{{ e.nombre }}</option>
+        <option value="">-- All --</option>
+        {% for e in employees %}
+          <option value="{{ e.document_id }}" {% if filter.empleado_id and filter.empleado_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
         {% endfor %}
       </select>
 
-      <button type="submit" class="btn">Aplicar filtros</button>
-      <a class="btn" href="/admin/fichajes">Limpiar</a>
+      <button type="submit" class="btn">Apply filters</button>
+      <a class="btn" href="/admin/fichajes">Clear</a>
     </form>
   </section>
 
@@ -31,20 +31,20 @@
     {% if fichas and fichas|length > 0 %}
       <table class="table">
         <thead>
-          <tr><th>Fecha</th><th>Empleado</th><th>Tipo</th></tr>
+          <tr><th>Date</th><th>Employee</th><th>Type</th></tr>
         </thead>
         <tbody>
           {% for f in fichas %}
             <tr>
               <td>{{ f.timestamp|format_datetime }}</td>
-              <td>{{ empleados_map.get(f.empleado_id, f.empleado_id) }}</td>
+              <td>{{ employees_map.get(f.empleado_id, f.empleado_id) }}</td>
               <td>{{ f.tipo }}</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <p>No hay registros que coincidan con los filtros.</p>
+      <p>No records match the filters.</p>
     {% endif %}
   </section>
 {% endblock %}

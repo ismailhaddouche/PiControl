@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 
-{% block title %}Primer Inicio - Crear Admin{% endblock %}
+{% block title %}First Run - Create Admin{% endblock %}
 
 {% block content %}
   <div class="card">
-    <h2>Configuración inicial</h2>
-    <p>Crea el usuario administrador para gestionar la aplicación.</p>
+    <h2>Initial setup</h2>
+    <p>Create the administrator account to manage the application.</p>
     <form method="post" action="/admin/setup">
-      <label>Usuario: <input name="username" required/></label><br />
-      <label>Contraseña: <input name="password" type="password" required/></label><br />
-      <button type="submit">Crear administrador</button>
+      <label>Username: <input name="username" required/></label><br />
+      <label>Password: <input name="password" type="password" required/></label><br />
+      <button type="submit">Create administrator</button>
     </form>
   </div>
 {% endblock %}

@@ -1,7 +1,7 @@
 import warnings
 
-# Suprimir warning deprecación relacionado con el módulo 'crypt' que algunos entornos
-# emiten a través de passlib (solo en desarrollo). Esto evita ruido en tests.
+# Suppress deprecation warning related to the 'crypt' module that some environments
+# emit through passlib (dev only). This avoids noise in tests.
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.utils")
 
 from fastapi import FastAPI
@@ -9,36 +9,70 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 import os
 from fastapi.responses import RedirectResponse
+import logging
+from logging.handlers import TimedRotatingFileHandler
 
 from app.db import init_db
-from app.routers import empleados, fichajes, web
+from app.routers import employees, checkins, web
 
 app = FastAPI(title="PiControl - API")
 
-# Suprimir warning deprecación relacionado con el módulo 'crypt' que algunos entornos
-# emiten a través de passlib (solo en desarrollo). Esto evita ruido en tests.
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.utils")
-
-# Session middleware simple (dev) para la interfaz web
+# Session middleware simple (dev) for web interface
 secret = os.environ.get("SECRET_KEY", "devsecret")
 app.add_middleware(SessionMiddleware, secret_key=secret)
 
-app.include_router(empleados.router)
-app.include_router(fichajes.router)
+
+def setup_admin_logging():
+	"""Configure a rotating logger for administrative actions.
+
+	Attempts to write to /var/log/picontrol/admin_actions.log by default. If not
+	possible, falls back to a local file within the project.
+	"""
+	log_path = os.environ.get("PICONTROL_ADMIN_LOG", "/var/log/picontrol/admin_actions.log")
+	try:
+		log_dir = os.path.dirname(log_path)
+		if log_dir:
+			os.makedirs(log_dir, exist_ok=True)
+	except Exception:
+		# fallback to a path within the project
+		log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "admin_actions.log"))
+		try:
+			os.makedirs(os.path.dirname(log_path), exist_ok=True)
+		except Exception:
+			pass
+
+	logger = logging.getLogger("picontrol.admin")
+	if not logger.handlers:
+		logger.setLevel(logging.INFO)
+		try:
+			handler = TimedRotatingFileHandler(log_path, when="midnight", backupCount=14, encoding="utf-8")
+			formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+			handler.setFormatter(formatter)
+			logger.addHandler(handler)
+		except Exception:
+			# último recurso: no vomitar error en arranque
+			pass
+
+
+# configure audit logging before tables are created
+setup_admin_logging()
+
+app.include_router(employees.router)
+app.include_router(checkins.router)
 app.include_router(web.router)
 
-# Montar carpeta static (opcional)
+# Mount static folder (optional)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(static_dir):
 	app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Crear las tablas al importar el módulo (útil para tests y para la fase 1 simulada)
+# Create tables when importing the module (useful for tests and for simulated phase 1)
 init_db()
 
 
 @app.get("/")
 def root_redirect():
-	"""Redirige la raíz al panel de administración para una experiencia más directa."""
+	"""Redirect root to admin panel for a more direct experience."""
 	return RedirectResponse(url="/admin")
 
 

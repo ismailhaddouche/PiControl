@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Wrapper para regenerar la SECRET_KEY de PiControl vinculado a la máquina (machine-id)
+# Wrapper to regenerate PiControl's SECRET_KEY tied to the machine (machine-id)
 
 set -euo pipefail
 
@@ -8,11 +8,11 @@ STORED_ID="$LIB_DIR/machine-id"
 CURRENT_ID_FILE="/etc/machine-id"
 
 if [ ! -f "$STORED_ID" ]; then
-  echo "No se encontró fichero de instalación ($STORED_ID). No puedo verificar la máquina. Abortando."
+  echo "Installation file not found ($STORED_ID). Cannot verify machine. Aborting."
   exit 1
 fi
 if [ ! -f "$CURRENT_ID_FILE" ]; then
-  echo "No existe /etc/machine-id. Abortando."
+  echo "/etc/machine-id does not exist. Aborting."
   exit 1
 fi
 
@@ -20,16 +20,16 @@ STORED=$(cat "$STORED_ID" | tr -d '\n\r')
 CURRENT=$(cat "$CURRENT_ID_FILE" | tr -d '\n\r')
 
 if [ "$STORED" != "$CURRENT" ]; then
-  echo "Esta herramienta sólo puede ejecutarse desde la Raspberry Pi original. Abortando."
+  echo "This tool can only be run from the original Raspberry Pi. Aborting."
   exit 1
 fi
 
-echo "Máquina verificada. Regenerando SECRET_KEY localmente..."
+echo "Machine verified. Regenerating SECRET_KEY locally..."
 PYTHON_EXEC="/usr/bin/env python3"
 SCRIPT_DIR="$(dirname "$0")/.."
 
 "$PYTHON_EXEC" "$SCRIPT_DIR/tools/rotate_secret.py"
 
-echo "Operación completada. Se ha guardado una copia en /var/lib/picontrol/secret_key.txt (permisos 600)."
+echo "Operation completed. A copy has been saved to /var/lib/picontrol/secret_key.txt (permissions 600)."
 
 exit 0

@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+  <h2>Hours reports</h2>
+  <form method="get" action="/admin/reportes/horas" class="filters-form">
+    <label for="empleado_sel">Employee:</label>
+    <select id="empleado_sel" name="empleado_id">
+      {% for e in employees %}
+        <option value="{{ e.document_id }}" {% if filter and filter.empleado_id and filter.empleado_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="start">From (date and time):</label>
+    <input id="start" name="start" type="datetime-local" value="{{ filter.start if filter.start }}" />
+
+    <label for="end">To (date and time):</label>
+    <input id="end" name="end" type="datetime-local" value="{{ filter.end if filter.end }}" />
+
+    <button type="submit" class="btn">Generate</button>
+    <a class="btn" href="/admin/reportes">Clear</a>
+  </form>
+{% endblock %}
