@@ -39,7 +39,11 @@ con colaboradores. Haz un backup antes de proceder.
 
 4) Rotación de secretos en la máquina objetivo
 
-   - Rotear SECRET_KEY (si fue expuesta), API keys y cualquier contraseña presente en la BD.
+      - Rotear SECRET_KEY (si fue expuesta), API keys y cualquier contraseña presente en la BD.
+      - Nota: los scripts `tools/reset_admin.py` y `tools/rotate_secret.py` han sido modificados para
+         evitar escribir secretos en disco por defecto. `reset_admin.py` ahora imprime la contraseña en
+         stdout (one-time) y `rotate_secret.py` imprime la nueva SECRET_KEY y solo crea copia con
+         `--backup`.
    - Cambiar claves y tokens en los servicios afectados (por ejemplo, proveedores de API).
 
 5) Crear scripts/migraciones para recrear la DB en el despliegue

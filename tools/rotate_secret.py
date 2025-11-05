@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Regenera la SECRET_KEY para PiControl y la escribe en /etc/default/picontrol.
 
-Este script está pensado para ejecutarse localmente (desde el wrapper que valida machine-id).
-Genera una clave segura, la escribe en /etc/default/picontrol con permisos 600 y guarda una copia
-en /var/lib/picontrol/secret_key.txt (modo 600) para que el administrador pueda consultarla si es necesario.
-Finalmente reinicia el servicio `picontrol.service` para aplicar la nueva clave.
+Por motivos de seguridad este script ya NO guarda por defecto una copia persistente
+de la clave en `/var/lib/picontrol/secret_key.txt`. Imprime la nueva clave por stdout
+y solo crea una copia si se pasa --backup.
+
+Este comportamiento evita ficheros con secretos en disco.
 """
+import argparse
 import os
 import secrets
-import stat
 import subprocess
 
 CONFIG_FILE = "/etc/default/picontrol"
@@ -28,10 +29,18 @@ def write_config(secret):
         f.write(content)
     os.chmod(tmp, 0o600)
     os.replace(tmp, CONFIG_FILE)
-    os.chown(CONFIG_FILE, 0, 0)
+    try:
+        os.chown(CONFIG_FILE, 0, 0)
+    except Exception:
+        # best-effort: if not root or on systems without uid 0 mapping, ignore
+        pass
 
 
 def save_copy(secret):
+    """Create a backup copy of the secret in LIB_DIR with strict permissions.
+
+    This is opt-in and should only be used for one-time recovery; avoid leaving copies.
+    """
     os.makedirs(LIB_DIR, exist_ok=True)
     with open(OUT_FILE, "w") as f:
         f.write(f"SECRET_KEY={secret}\n")
@@ -47,10 +56,22 @@ def restart_service():
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Rotate PiControl SECRET_KEY")
+    parser.add_argument("--backup", action="store_true", help="Create a backup copy in /var/lib/picontrol (opt-in)")
+    args = parser.parse_args()
+
     secret = generate_secret()
     write_config(secret)
-    save_copy(secret)
-    print(f"Nueva SECRET_KEY generada y guardada en {CONFIG_FILE} y copia en {OUT_FILE}")
+
+    # Print the new secret to stdout so the operator can copy it (one-time)
+    print("=== Nueva SECRET_KEY (única salida) ===")
+    print(secret)
+    print("======================================")
+
+    if args.backup:
+        save_copy(secret)
+        print(f"Copia de seguridad escrita en {OUT_FILE}")
+
     restart_service()
 
 
