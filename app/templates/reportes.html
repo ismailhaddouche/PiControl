@@ -4,16 +4,21 @@
 
 {% block content %}
   <h2>Reportes de horas</h2>
-  <form method="get" action="/admin/reportes/horas">
-    <label>Empleado:
-      <select name="empleado_id">
-        {% for e in empleados %}
-          <option value="{{ e.id }}">{{ e.nombre }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>Start (ISO): <input name="start" placeholder="2025-11-04T00:00:00" /></label>
-    <label>End (ISO): <input name="end" placeholder="2025-11-04T23:59:59" /></label>
-    <button type="submit">Generar</button>
+  <form method="get" action="/admin/reportes/horas" class="filters-form">
+    <label for="empleado_sel">Empleado:</label>
+    <select id="empleado_sel" name="empleado_id">
+      {% for e in empleados %}
+        <option value="{{ e.dni }}" {% if filter and filter.empleado_id and filter.empleado_id == e.dni %}selected{% endif %}>{{ e.nombre }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="start">Desde (fecha y hora):</label>
+    <input id="start" name="start" type="datetime-local" value="{{ filter.start if filter.start }}" />
+
+    <label for="end">Hasta (fecha y hora):</label>
+    <input id="end" name="end" type="datetime-local" value="{{ filter.end if filter.end }}" />
+
+    <button type="submit" class="btn">Generar</button>
+    <a class="btn" href="/admin/reportes">Limpiar</a>
   </form>
 {% endblock %}

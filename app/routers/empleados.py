@@ -17,11 +17,14 @@ def get_session():
 
 @router.post("/empleados/", response_model=Empleado)
 def api_create_empleado(payload: dict, session: Session = Depends(get_session)):
+    dni = payload.get("dni")
     nombre = payload.get("nombre")
     rfid_uid = payload.get("rfid_uid")
     if not nombre:
         raise HTTPException(status_code=400, detail="'nombre' es obligatorio")
-    empleado = create_empleado(session, nombre=nombre, rfid_uid=rfid_uid)
+    if not dni:
+        raise HTTPException(status_code=400, detail="'dni' es obligatorio")
+    empleado = create_empleado(session, dni=dni, nombre=nombre, rfid_uid=rfid_uid)
     return empleado
 
 
@@ -31,7 +34,7 @@ def api_list_empleados(session: Session = Depends(get_session)):
 
 
 @router.put("/empleados/{empleado_id}/rfid", response_model=Empleado)
-def api_assign_rfid(empleado_id: int, payload: dict, session: Session = Depends(get_session)):
+def api_assign_rfid(empleado_id: str, payload: dict, session: Session = Depends(get_session)):
     rfid_uid = payload.get("rfid_uid")
     empleado = assign_rfid(session, empleado_id, rfid_uid)
     if not empleado:

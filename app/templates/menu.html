@@ -4,9 +4,45 @@
 
 {% block content %}
   <h2>Panel de Administración</h2>
-  <ul>
-    <li><a href="/admin/empleados">Gestionar empleados</a></li>
-    <li><a href="/admin/fichajes">Ver fichajes</a></li>
-    <li><a href="/admin/reportes">Reportes de horas</a></li>
-  </ul>
+
+  <!-- Zona superior: botón / formulario de registro manual -->
+  <section class="manual-register">
+    <h3>Registro manual</h3>
+    <form method="post" action="/admin/fichajes/manual" class="inline-form">
+      <label for="empleado_select">Seleccionar empleado:</label>
+      <select id="empleado_select" name="empleado_id" required>
+        <option value="">-- selecciona --</option>
+        {% for e in empleados %}
+          <option value="{{ e.dni }}">{{ e.nombre }}{% if e.rfid_uid %} ({{ e.rfid_uid }}){% endif %}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn">Registrar manual</button>
+    </form>
+    {% if flash %}
+      <div class="flash success">{{ flash }}</div>
+    {% endif %}
+  </section>
+
+  <!-- Zona inferior: últimos 20 registros -->
+  <section class="recent-fichajes">
+    <h3>Últimos 20 registros <small><a href="/admin/fichajes">(ver histórico completo)</a></small></h3>
+    {% if recientes and recientes|length > 0 %}
+      <table class="table">
+        <thead>
+          <tr><th>Fecha</th><th>Empleado</th><th>Tipo</th></tr>
+        </thead>
+        <tbody>
+          {% for f in recientes %}
+            <tr>
+              <td>{{ f.timestamp|format_datetime }}</td>
+              <td>{{ empleados_map.get(f.empleado_id, f.empleado_id) }}</td>
+              <td>{{ f.tipo }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No hay registros recientes.</p>
+    {% endif %}
+  </section>
 {% endblock %}

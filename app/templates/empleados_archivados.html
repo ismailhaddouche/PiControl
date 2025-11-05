@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Empleados Archivados{% endblock %}
+
+{% block content %}
+  <h2>Archivo de Empleados</h2>
+  <p><a href="/admin/empleados">Volver a Empleados</a></p>
+  {% if empleados and empleados|length > 0 %}
+    <table class="table">
+      <thead><tr><th>DNI</th><th>Nombre</th><th>Archivado en</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for e in empleados %}
+          <tr>
+            <td>{{ e.dni }}</td>
+            <td>{{ e.nombre }}</td>
+            <td>{{ e.archived_at|format_datetime if e.archived_at }}</td>
+            <td>
+              <a class="btn" href="/admin/empleados/{{ e.dni }}/historial">Ver historial</a>
+              <form method="post" action="/admin/empleados/{{ e.dni }}/restore" style="display:inline">
+                <button type="submit" class="btn">Restaurar</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No hay empleados archivados.</p>
+  {% endif %}
+{% endblock %}

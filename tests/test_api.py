@@ -7,7 +7,7 @@ client = TestClient(app)
 
 def test_crear_empleado_y_fichaje():
     # crear empleado
-    r = client.post("/empleados/", json={"nombre": "Ismail", "rfid_uid": "rfid-001"})
+    r = client.post("/empleados/", json={"dni": "0001A", "nombre": "Ismail", "rfid_uid": "rfid-001"})
     assert r.status_code == 200
     emp = r.json()
     assert emp["nombre"] == "Ismail" or emp.get("nombre") == "Ismail"
@@ -17,12 +17,12 @@ def test_crear_empleado_y_fichaje():
     assert r2.status_code == 200
     ficha = r2.json()
     assert ficha["tipo"] in ("entrada", "salida")
-    assert isinstance(ficha["empleado_id"], int)
+    assert isinstance(ficha["empleado_id"], str)
     # comprobar que el empleado existe en la lista
     rlist = client.get("/empleados/")
     assert rlist.status_code == 200
     empleados = rlist.json()
-    assert any(e["id"] == ficha["empleado_id"] for e in empleados)
+    assert any(e["dni"] == ficha["empleado_id"] for e in empleados)
 
     # listar fichajes
     r3 = client.get("/fichajes/")
@@ -33,7 +33,7 @@ def test_crear_empleado_y_fichaje():
 
 def test_horas_trabajadas_basicas():
     # crear empleado B
-    r = client.post("/empleados/", json={"nombre": "Ana", "rfid_uid": "rfid-ana"})
+    r = client.post("/empleados/", json={"dni": "0002B", "nombre": "Ana", "rfid_uid": "rfid-ana"})
     assert r.status_code == 200
     emp = r.json()
     # entrada
@@ -44,8 +44,8 @@ def test_horas_trabajadas_basicas():
     assert r2.status_code == 200
 
     # pedir reporte de horas
-    r3 = client.get(f"/reportes/horas/{emp['id']}")
+    r3 = client.get(f"/reportes/horas/{emp['dni']}")
     assert r3.status_code == 200
     rep = r3.json()
-    assert rep["empleado_id"] == emp["id"]
+    assert rep["empleado_id"] == emp["dni"]
     assert isinstance(rep["total_hours"], float)

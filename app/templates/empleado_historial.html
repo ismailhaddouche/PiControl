@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Historial - {{ empleado.nombre }}{% endblock %}
+
+{% block content %}
+  <h2>Historial de fichajes - {{ empleado.nombre }} ({{ empleado.dni }})</h2>
+  <p><a href="/admin/empleados/archivados">Volver al archivo</a></p>
+  {% if fichas and fichas|length > 0 %}
+    <table class="table">
+      <thead><tr><th>Fecha</th><th>Tipo</th></tr></thead>
+      <tbody>
+        {% for f in fichas %}
+          <tr>
+            <td>{{ f.timestamp|format_datetime }}</td>
+            <td>{{ f.tipo }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No hay fichajes para este empleado.</p>
+  {% endif %}
+{% endblock %}

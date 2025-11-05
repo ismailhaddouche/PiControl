@@ -1,3 +1,9 @@
+import warnings
+
+# Suprimir warning deprecación relacionado con el módulo 'crypt' que algunos entornos
+# emiten a través de passlib (solo en desarrollo). Esto evita ruido en tests.
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.utils")
+
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
@@ -8,6 +14,10 @@ from app.db import init_db
 from app.routers import empleados, fichajes, web
 
 app = FastAPI(title="PiControl - API")
+
+# Suprimir warning deprecación relacionado con el módulo 'crypt' que algunos entornos
+# emiten a través de passlib (solo en desarrollo). Esto evita ruido en tests.
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.utils")
 
 # Session middleware simple (dev) para la interfaz web
 secret = os.environ.get("SECRET_KEY", "devsecret")

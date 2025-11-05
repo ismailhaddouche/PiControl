@@ -29,4 +29,53 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     });
   });
+
+  // Interceptar el formulario de registro manual (si existe)
+  const manualForm = document.querySelector('form[action="/admin/fichajes/manual"]');
+  if (manualForm) {
+    manualForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(manualForm);
+      const rfid = formData.get('rfid_uid');
+      if (!rfid || rfid.trim() === '') return alert('Introduce un RFID');
+
+      fetch('/admin/fichajes/manual_ajax', {
+        method: 'POST',
+        body: formData,
+      }).then(resp => resp.json()).then(data => {
+        if (!data) return alert('Respuesta inválida');
+        if (!data.success) return alert(data.error || 'Error');
+
+        // mostrar flash
+        const flash = document.getElementById('flash');
+        if (flash) {
+          flash.textContent = data.mensaje || 'Registrado';
+          flash.className = 'flash success';
+        }
+
+        // añadir la nueva fila al inicio de la tabla de recientes si existe
+        const tableBody = document.querySelector('.recent-fichajes table tbody');
+        if (tableBody && data.fichaje) {
+          const tr = document.createElement('tr');
+          const ts = document.createElement('td');
+          ts.textContent = new Date(data.fichaje.timestamp).toLocaleString();
+          const emp = document.createElement('td');
+          emp.textContent = data.fichaje.empleado_nombre || data.fichaje.empleado_id;
+          const tipo = document.createElement('td');
+          tipo.textContent = data.fichaje.tipo;
+          tr.appendChild(ts);
+          tr.appendChild(emp);
+          tr.appendChild(tipo);
+          if (tableBody.firstChild) tableBody.insertBefore(tr, tableBody.firstChild);
+          else tableBody.appendChild(tr);
+        }
+
+        // limpiar input
+        manualForm.querySelector('input[name="rfid_uid"]').value = '';
+      }).catch(err => {
+        console.error(err);
+        alert('Error de conexión al registrar');
+      });
+    });
+  }
 });

@@ -4,16 +4,24 @@
 
 {% block content %}
   <h2>Horas trabajadas - Empleado {{ empleado_id }}</h2>
-  <p>Total horas: {{ total_hours }}</p>
-  <h3>Periodos</h3>
-  <table>
-    <tr><th>Entrada</th><th>Salida</th><th>Horas</th></tr>
-    {% for e, s, h in pairs %}
-    <tr>
-      <td>{{ e }}</td>
-      <td>{{ s }}</td>
-      <td>{{ h }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  <p>Periodo: {{ start or '—' }} — {{ end or '—' }}</p>
+  <h3>Horas por día</h3>
+  {% if per_day and per_day|length > 0 %}
+    <table class="table">
+      <thead><tr><th>Fecha</th><th>Horas (decimal)</th></tr></thead>
+      <tbody>
+        {% for day, hrs in per_day %}
+          <tr>
+            <td>{{ day }}</td>
+            <td>{{ "%0.2f"|format(hrs)|replace('.', ',') }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><th>Total</th><th>{{ "%0.2f"|format(total_hours)|replace('.', ',') }}</th></tr>
+      </tfoot>
+    </table>
+  {% else %}
+    <p>No hay periodos para el rango seleccionado.</p>
+  {% endif %}
 {% endblock %}

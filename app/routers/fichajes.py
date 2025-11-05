@@ -36,12 +36,12 @@ def api_create_fichaje(payload: dict, session: Session = Depends(get_session)):
 
 
 @router.get("/fichajes/", response_model=List[Fichaje])
-def api_list_fichajes(empleado_id: Optional[int] = None, session: Session = Depends(get_session)):
+def api_list_fichajes(empleado_id: Optional[str] = None, session: Session = Depends(get_session)):
     return list_fichajes(session, empleado_id=empleado_id)
 
 
 @router.get("/fichajes/empleado/{empleado_id}")
-def api_list_fichajes_por_empleado(empleado_id: int, start: Optional[str] = Query(None), end: Optional[str] = Query(None), session: Session = Depends(get_session)):
+def api_list_fichajes_por_empleado(empleado_id: str, start: Optional[str] = Query(None), end: Optional[str] = Query(None), session: Session = Depends(get_session)):
     """Listar fichajes de un empleado opcionalmente filtrando por rango ISO (start,end)."""
     start_dt = datetime.fromisoformat(start) if start else None
     end_dt = datetime.fromisoformat(end) if end else None
@@ -55,7 +55,7 @@ def api_list_fichajes_por_empleado(empleado_id: int, start: Optional[str] = Quer
 
 
 @router.get("/reportes/horas/{empleado_id}")
-def api_horas_trabajadas(empleado_id: int, start: Optional[str] = Query(None), end: Optional[str] = Query(None), session: Session = Depends(get_session)):
+def api_horas_trabajadas(empleado_id: str, start: Optional[str] = Query(None), end: Optional[str] = Query(None), session: Session = Depends(get_session)):
     start_dt = datetime.fromisoformat(start) if start else None
     end_dt = datetime.fromisoformat(end) if end else None
     total_hours, pairs = horas_trabajadas(session, empleado_id, start=start_dt, end=end_dt)
