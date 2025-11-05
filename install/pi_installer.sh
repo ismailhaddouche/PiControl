@@ -176,6 +176,11 @@ install -m 0755 "$REPO_DIR/tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
 install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
 install -m 0755 "$REPO_DIR/tools/picontrol-cleanup.sh" "/usr/local/bin/picontrol-cleanup.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-restart.sh" "/usr/local/bin/picontrol-restart.sh" || true
+# Install GUI wrappers (if present in repo)
+install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin-gui.sh" "/usr/local/bin/picontrol-reset-admin-gui.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "/usr/local/bin/picontrol-rotate-secret-gui.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-restart-gui.sh" "/usr/local/bin/picontrol-restart-gui.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "/usr/local/bin/picontrol-firstboot-gui.sh" || true
 
 echo "Instalando servicio systemd..."
 install -m 0644 "$REPO_DIR/install/picontrol-firstboot.service" "$SERVICE_FILE"
@@ -316,11 +321,11 @@ if [ -n "$DESKTOP_USER" ]; then
     USER_HOME=$(getent passwd "$DESKTOP_USER" | cut -d: -f6)
     DESKTOP_DIR="$USER_HOME/Desktop"
     mkdir -p "$DESKTOP_DIR"
-    cat > "$DESKTOP_DIR/PiControl Reset Admin.desktop" <<EOF
+  cat > "$DESKTOP_DIR/PiControl Reset Admin.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Reset PiControl Admin
-Exec=$RESET_BIN
+Exec=/usr/local/bin/picontrol-reset-admin-gui.sh
 Icon=utilities-terminal
 Terminal=true
 EOF
@@ -332,7 +337,7 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=Rotate PiControl Secret
-Exec=/usr/local/bin/picontrol-rotate-secret.sh
+Exec=/usr/local/bin/picontrol-rotate-secret-gui.sh
 Icon=security-high
 Terminal=true
 EOF
@@ -340,11 +345,12 @@ EOF
   chmod 0755 "$DESKTOP_DIR/PiControl Rotate Secret.desktop"
   echo "Acceso directo creado en $DESKTOP_DIR/PiControl Rotate Secret.desktop"
   # Crear acceso directo para reiniciar los servicios de PiControl
+[...skipping unchanged lines...]
   cat > "$DESKTOP_DIR/PiControl Restart Services.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Restart PiControl Services
-Exec=/usr/local/bin/picontrol-restart.sh
+Exec=/usr/local/bin/picontrol-restart-gui.sh
 Icon=system-restart
 Terminal=true
 EOF
