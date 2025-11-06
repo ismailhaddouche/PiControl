@@ -34,6 +34,29 @@ from app.crud import (
     log_admin_action,
     list_admin_actions,
 )
+import json
+
+PENDING_FILE = os.environ.get("PICONTROL_RFID_PENDING_FILE", "/var/lib/picontrol/rfid_assign_pending.json")
+from datetime import datetime
+
+
+def _read_pending_file():
+    try:
+        if not os.path.exists(PENDING_FILE):
+            return None
+        with open(PENDING_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _clear_pending_file():
+    try:
+        if os.path.exists(PENDING_FILE):
+            os.remove(PENDING_FILE)
+    except Exception:
+        pass
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "..", "templates"))
@@ -112,6 +135,83 @@ def admin_index(request: Request, session: Session = Depends(get_session)):
     )
 
 
+
+@router.get("/admin/rfid", response_class=HTMLResponse)
+def admin_rfid_pending(request: Request, session: Session = Depends(get_session)):
+    if not require_login(request):
+        return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
+    pending = _read_pending_file()
+    employees = list_employees(session)
+    return templates.TemplateResponse("rfid_assign.html", {"request": request, "pending": pending, "employees": employees})
+
+
+@router.post("/admin/rfid/assign")
+def admin_rfid_assign(request: Request, employee_id: str = Form(...), session: Session = Depends(get_session)):
+    if not require_login(request):
+        return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
+    username = request.session.get("user")
+    pending = _read_pending_file()
+    if not pending:
+        request.session["flash"] = "No pending tag to assign."
+        return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
+    rfid_uid = pending.get("rfid_uid")
+    if not rfid_uid:
+        request.session["flash"] = "Invalid pending payload."
+        _clear_pending_file()
+        return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
+    # assign via CRUD
+    emp = assign_rfid(session, employee_id, rfid_uid, performed_by=username)
+    if not emp:
+        request.session["flash"] = "Employee not found."
+        return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
+    # clear pending and redirect
+    _clear_pending_file()
+    request.session["flash"] = f"RFID {rfid_uid} assigned to {emp.name} ({emp.document_id})."
+    # broadcast assignment event
+    try:
+        from app.rfid import push_event
+        push_event({"type": "rfid_assigned", "rfid_uid": rfid_uid, "employee_id": emp.document_id, "employee_name": emp.name, "timestamp": datetime.utcnow().isoformat()})
+    except Exception:
+        pass
+    return RedirectResponse(url="/admin/employees", status_code=HTTP_302_FOUND)
+
+
+@router.post("/admin/rfid/clear")
+def admin_rfid_clear(request: Request):
+    if not require_login(request):
+        return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
+    _clear_pending_file()
+    request.session["flash"] = "Pending tag cleared."
+    return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
+
+
+
+@router.post("/admin/rfid/assign_ajax")
+def admin_rfid_assign_ajax(request: Request, employee_id: str = Form(...), session: Session = Depends(get_session)):
+    """AJAX endpoint to assign the currently pending RFID to an employee and return JSON."""
+    if not require_login(request):
+        return {"success": False, "error": "Not authenticated"}
+    username = request.session.get("user")
+    pending = _read_pending_file()
+    if not pending:
+        return {"success": False, "error": "No pending RFID assignment"}
+    rfid_uid = pending.get("rfid_uid")
+    if not rfid_uid:
+        _clear_pending_file()
+        return {"success": False, "error": "Invalid pending payload"}
+    emp = assign_rfid(session, employee_id, rfid_uid, performed_by=username)
+    if not emp:
+        return {"success": False, "error": "Employee not found"}
+    _clear_pending_file()
+    # broadcast assignment event
+    try:
+        from app.rfid import push_event
+        push_event({"type": "rfid_assigned", "rfid_uid": rfid_uid, "employee_id": emp.document_id, "employee_name": emp.name, "timestamp": datetime.utcnow().isoformat()})
+    except Exception:
+        pass
+    return {"success": True, "message": f"RFID {rfid_uid} assigned to {emp.name}", "employee_id": emp.document_id, "rfid_uid": rfid_uid}
+
+
 @router.post("/admin/checkins/manual")
 def admin_checkin_manual(request: Request, employee_id: Optional[str] = Form(None), rfid_uid: Optional[str] = Form(None), session: Session = Depends(get_session)):
     """Create a manual check-in selecting an employee or by RFID (compatibility).
@@ -169,6 +269,12 @@ def admin_checkin_manual_ajax(request: Request, employee_id: Optional[str] = For
         username = request.session.get("user")
         if username:
             log_admin_action(session, username, "manual_checkin", f"checkin id={checkin.id} employee={employee.document_id} type={checkin.type}")
+            # broadcast manual checkin event
+            try:
+                from app.rfid import push_event
+                push_event({"type": "checkin", "rfid_uid": None, "employee_id": employee.document_id, "employee_name": employee.name, "checkin_type": checkin.type, "checkin_id": checkin.id, "timestamp": checkin.timestamp.isoformat(), "message": message})
+            except Exception:
+                pass
     except Exception:
         pass
     
@@ -180,9 +286,9 @@ def admin_checkin_manual_ajax(request: Request, employee_id: Optional[str] = For
             "timestamp": checkin.timestamp.isoformat(),
             "employee_id": checkin.employee_id,
             "employee_name": employee.name,
-                "tipo": checkin.tipo,
-            },
-        }
+            "type": checkin.type,
+        },
+    }
 
 
 @router.get("/admin/setup", response_class=HTMLResponse)
@@ -258,11 +364,21 @@ def admin_employees_restore(request: Request, employee_id: str, session: Session
 
 
 @router.post("/admin/employees")
-def admin_employees_add(request: Request, dni: str = Form(...), nombre: str = Form(...), rfid_uid: Optional[str] = Form(None), session: Session = Depends(get_session)):
+def admin_employees_add(request: Request, document_id: Optional[str] = Form(None), name: Optional[str] = Form(None), rfid_uid: Optional[str] = Form(None), dni: Optional[str] = Form(None), nombre: Optional[str] = Form(None), session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     username = request.session.get("user")
-    create_employee(session, dni=dni, nombre=nombre, rfid_uid=rfid_uid, performed_by=username)
+    # Prefer English form field names (document_id, name); fall back to old Spanish (dni, nombre)
+    doc = document_id or dni
+    nm = name or nombre
+    if not doc or not nm:
+        request.session["flash"] = "Missing employee ID or name"
+        return RedirectResponse(url="/admin/employees", status_code=HTTP_302_FOUND)
+    try:
+        create_employee(session, document_id=doc, name=nm, rfid_uid=rfid_uid or None, performed_by=username)
+    except TypeError:
+        # Defensive fallback to older signature
+        create_employee(session, doc, nm, rfid_uid)
     return RedirectResponse(url="/admin/employees", status_code=HTTP_302_FOUND)
 
 
@@ -284,7 +400,7 @@ def admin_employees_assign_ajax(request: Request, employee_id: str, rfid_uid: st
     employee = assign_rfid(session, employee_id, rfid_uid, performed_by=username)
     if not employee:
         return {"success": False, "error": "Employee not found"}
-    return {"success": True, "nombre": employee.name, "rfid_uid": employee.rfid_uid}
+    return {"success": True, "name": employee.name, "rfid_uid": employee.rfid_uid}
 
 
 @router.get("/admin/checkins", response_class=HTMLResponse)
@@ -478,6 +594,12 @@ def admin_configuration(request: Request, session: Session = Depends(get_session
     )
 
 
+@router.get("/kiosk", response_class=HTMLResponse)
+def kiosk_view():
+    """Public kiosk view. Intentionally no login so Pi can open it at boot in kiosk mode."""
+    return templates.TemplateResponse("kiosk.html", {"request": None})
+
+
 @router.post("/admin/restart")
 def admin_restart(request: Request, session: Session = Depends(get_session)):
     """Endpoint seguro para que un admin inicie el reinicio de servicios de PiControl.
@@ -507,15 +629,15 @@ def admin_restart(request: Request, session: Session = Depends(get_session)):
         except Exception:
             pass
         if proc.returncode == 0:
-            request.session["flash"] = "Reinicio solicitado correctamente. Comprueba los logs si es necesario."
+            request.session["flash"] = "Restart requested successfully. Check logs if needed."
         else:
-            request.session["flash"] = f"Error al solicitar reinicio (código {proc.returncode}). Revisa logs." 
+            request.session["flash"] = f"Error requesting restart (code {proc.returncode}). Check logs." 
     except Exception as e:
         try:
             log_admin_action(session, username or "unknown", "restart_service_error", str(e)[:2000])
         except Exception:
             pass
-        request.session["flash"] = f"Excepción al intentar reiniciar: {e}"
+    request.session["flash"] = f"Exception while requesting restart: {e}"
 
     return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
 

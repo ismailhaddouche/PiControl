@@ -1,0 +1,9 @@
+# picontrol-write-rfid sudoers template
+# Copy this file to /etc/sudoers.d/picontrol-write-rfid and replace {SERVICE_USER}
+# with the system user that runs the Picontrol service (commonly 'picontrol').
+# Example (after replacement):
+# picontrol ALL=(root) NOPASSWD: /usr/local/bin/picontrol-write-rfid
+
+{SERVICE_USER} ALL=(root) NOPASSWD: /usr/local/bin/picontrol-write-rfid
+
+# Note: keep this file with mode 0440 and owned by root:root

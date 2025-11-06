@@ -4,7 +4,7 @@
 
 {% block content %}
   <h2>Employees</h2>
-  <p><a href="/admin/employees/archivados">View archived employees</a></p>
+  <p><a href="/admin/employees/archived">View archived employees</a></p>
   <div class="card">
     <table>
       <tr><th>ID</th><th>Name</th><th>RFID</th><th>Actions</th></tr>
@@ -32,8 +32,8 @@
   </div>
   <h3>Add employee</h3>
   <form method="post" action="/admin/employees">
-    <label>ID: <input name="dni" required/></label>
-    <label>Name: <input name="nombre" required/></label>
+    <label>ID: <input name="document_id" required/></label>
+    <label>Name: <input name="name" required/></label>
     <label>RFID (optional): <input name="rfid_uid" /></label>
     <button type="submit">Create</button>
   </form>

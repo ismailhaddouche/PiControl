@@ -7,38 +7,38 @@
 
   <!-- Filters form -->
   <section class="filters">
-    <form method="get" action="/admin/fichajes" class="filters-form">
+  <form method="get" action="/admin/checkins" class="filters-form">
       <label for="start">From (date and time):</label>
       <input id="start" name="start" type="datetime-local" value="{{ filter.start if filter.start }}" />
 
       <label for="end">To (date and time):</label>
       <input id="end" name="end" type="datetime-local" value="{{ filter.end if filter.end }}" />
 
-      <label for="empleado_sel">Employee:</label>
-      <select id="empleado_sel" name="empleado_id">
+  <label for="employee_sel">Employee:</label>
+  <select id="employee_sel" name="employee_id">
         <option value="">-- All --</option>
         {% for e in employees %}
-          <option value="{{ e.document_id }}" {% if filter.empleado_id and filter.empleado_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
+          <option value="{{ e.document_id }}" {% if filter.employee_id and filter.employee_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
         {% endfor %}
       </select>
 
       <button type="submit" class="btn">Apply filters</button>
-      <a class="btn" href="/admin/fichajes">Clear</a>
+      <a class="btn" href="/admin/checkins">Clear</a>
     </form>
   </section>
 
-  <section class="fichajes-list">
-    {% if fichas and fichas|length > 0 %}
+  <section class="checkins-list">
+    {% if checkins and checkins|length > 0 %}
       <table class="table">
         <thead>
           <tr><th>Date</th><th>Employee</th><th>Type</th></tr>
         </thead>
         <tbody>
-          {% for f in fichas %}
+          {% for f in checkins %}
             <tr>
               <td>{{ f.timestamp|format_datetime }}</td>
-              <td>{{ employees_map.get(f.empleado_id, f.empleado_id) }}</td>
-              <td>{{ f.tipo }}</td>
+              <td>{{ employees_map.get(f.employee_id, f.employee_id) }}</td>
+              <td>{{ f.type }}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -47,4 +47,32 @@
       <p>No records match the filters.</p>
     {% endif %}
   </section>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function makeWsUrl(path) {
+      const protocol = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+      return protocol + '//' + location.host + path;
+    }
+    const ws = new WebSocket(makeWsUrl('/ws/rfid'));
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (!data) return;
+        if (data.type === 'checkin') {
+          const tbody = document.querySelector('.fichajes-list table tbody');
+          if (!tbody) return;
+          const tr = document.createElement('tr');
+          const tdTime = document.createElement('td'); tdTime.textContent = new Date(data.timestamp).toLocaleString();
+          const tdEmp = document.createElement('td'); tdEmp.textContent = data.employee_name || data.employee_id;
+          const tdType = document.createElement('td'); tdType.textContent = data.checkin_type;
+          tr.appendChild(tdTime); tr.appendChild(tdEmp); tr.appendChild(tdType);
+          if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild);
+        }
+      } catch (e) {
+        console.error('ws msg', e);
+      }
+    };
+  </script>
 {% endblock %}

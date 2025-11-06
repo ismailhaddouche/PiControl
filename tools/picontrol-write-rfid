@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""
+Minimal safe wrapper to write text onto an RC522 tag.
+
+This script is intended to be installed at /usr/local/bin/picontrol-write-rfid
+and executed via sudo by the web application user. It performs a single,
+well-scoped action: wait for an RFID tag, write the provided text, then read
+the tag back and print the UID and stored text to stdout (one per line).
+
+Exit codes:
+ 0 - success (prints uid\nstored_text)
+ 1 - write/read failure (prints error to stderr)
+ 2 - missing dependency (mfrc522 not installed)
+
+IMPORTANT: keep this script minimal and do not accept untrusted flags that
+could lead to command injection. Arguments are positional and treated safely.
+"""
+import sys
+import time
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description="Write text to RC522 tag and return UID")
+    parser.add_argument("text", help="Text to store on the tag (usually employee id)")
+    parser.add_argument("--timeout", type=int, default=30, help="Seconds to wait for a tag (default: 30)")
+    args = parser.parse_args()
+
+    try:
+        from mfrc522 import SimpleMFRC522
+    except Exception as e:
+        print(f"ERROR: mfrc522 library not available: {e}", file=sys.stderr)
+        sys.exit(2)
+
+    reader = SimpleMFRC522()
+    # mfrc522 SimpleMFRC522 will block on write until a tag is presented; enforce timeout externally
+    deadline = time.time() + args.timeout
+    try:
+        # Loop attempting to write until timeout
+        while True:
+            try:
+                reader.write(args.text)
+                # After writing, read back UID and text
+                uid, stored = reader.read()
+                # Print UID on first line and stored text on second
+                print(uid)
+                # stored may be bytes or str depending on implementation
+                if isinstance(stored, bytes):
+                    try:
+                        stored = stored.decode("utf-8")
+                    except Exception:
+                        stored = repr(stored)
+                print(stored)
+                sys.exit(0)
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                # If timeout reached, fail
+                if time.time() > deadline:
+                    print("ERROR: Timeout waiting for tag or write failed", file=sys.stderr)
+                    sys.exit(1)
+                # Otherwise sleep briefly and retry
+                time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("ERROR: Interrupted", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

@@ -15,7 +15,7 @@
             <td>{{ e.name }}</td>
             <td>{{ e.archived_at|format_datetime if e.archived_at }}</td>
             <td>
-              <a class="btn" href="/admin/employees/{{ e.document_id }}/historial">View history</a>
+              <a class="btn" href="/admin/employees/{{ e.document_id }}/history">View history</a>
               <form method="post" action="/admin/employees/{{ e.document_id }}/restore" style="display:inline">
                 <button type="submit" class="btn">Restore</button>
               </form>

@@ -4,11 +4,11 @@
 
 {% block content %}
   <h2>Hours reports</h2>
-  <form method="get" action="/admin/reportes/horas" class="filters-form">
-    <label for="empleado_sel">Employee:</label>
-    <select id="empleado_sel" name="empleado_id">
+  <form method="get" action="/admin/reports/horas" class="filters-form">
+  <label for="employee_sel">Employee:</label>
+  <select id="employee_sel" name="employee_id">
       {% for e in employees %}
-        <option value="{{ e.document_id }}" {% if filter and filter.empleado_id and filter.empleado_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
+        <option value="{{ e.document_id }}" {% if filter and filter.employee_id and filter.employee_id == e.document_id %}selected{% endif %}>{{ e.name }}</option>
       {% endfor %}
     </select>
 
@@ -19,6 +19,6 @@
     <input id="end" name="end" type="datetime-local" value="{{ filter.end if filter.end }}" />
 
     <button type="submit" class="btn">Generate</button>
-    <a class="btn" href="/admin/reportes">Clear</a>
+    <a class="btn" href="/admin/reports">Clear</a>
   </form>
 {% endblock %}

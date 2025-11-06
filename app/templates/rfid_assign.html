@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}Pending RFID Assignment{% endblock %}
+
+{% block content %}
+  <h2>Pending RFID Assignment</h2>
+
+  {% if not pending %}
+    <p>No pending tag. Present a tag to the reader in "assign" mode and this page will update automatically.</p>
+    <div id="pending-area">
+      <p><em>Waiting for tag...</em></p>
+    </div>
+  {% else %}
+    <div id="pending-area">
+      <div class="panel">
+        <p><strong>Detected RFID:</strong> <span id="pending-uid">{{ pending.rfid_uid }}</span></p>
+        <p><strong>Read at:</strong> <span id="pending-ts">{{ pending.timestamp }}</span></p>
+      </div>
+
+      <h3>Assign to employee</h3>
+      <form id="assign-form" class="inline-form">
+        <label for="employee_select">Select employee:</label>
+        <select id="employee_select" name="employee_id" required>
+          <option value="">-- choose --</option>
+          {% for e in employees %}
+            <option value="{{ e.document_id }}">{{ e.name }}{% if e.rfid_uid %} ({{ e.rfid_uid }}){% endif %}</option>
+          {% endfor %}
+        </select>
+        <button id="assign-btn" type="submit" class="btn">Assign RFID</button>
+        <button id="write-btn" type="button" class="btn btn-primary">Write tag and assign</button>
+        <button id="clear-btn" type="button" class="btn btn-secondary">Clear pending tag</button>
+      </form>
+    </div>
+  {% endif %}
+
+  <p><a href="/admin">Back to panel</a></p>
+
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    // Replace polling with WebSocket for real-time RFID events.
+    const uidEl = document.getElementById('pending-uid');
+    const tsEl = document.getElementById('pending-ts');
+    const assignForm = document.getElementById('assign-form');
+    const assignBtn = document.getElementById('assign-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const pendingArea = document.getElementById('pending-area');
+    // notification/banner element
+    const banner = document.createElement('div');
+    banner.id = 'rfid-banner';
+    banner.style.position = 'fixed';
+    banner.style.top = '8px';
+    banner.style.right = '8px';
+    banner.style.padding = '8px 12px';
+    banner.style.background = '#222';
+    banner.style.color = '#fff';
+    banner.style.borderRadius = '4px';
+    banner.style.display = 'none';
+    document.body.appendChild(banner);
+
+    function showBanner(msg, timeout=3000) {
+      banner.textContent = msg;
+      banner.style.display = 'block';
+      setTimeout(() => banner.style.display = 'none', timeout);
+    }
+
+    function makeWsUrl(path) {
+      const protocol = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+      return protocol + '//' + location.host + path;
+    }
+
+    let ws = null;
+    let reconnectMs = 500;
+
+    function connectWs() {
+      const url = makeWsUrl('/ws/rfid');
+      ws = new WebSocket(url);
+      ws.onopen = () => {
+        console.log('RFID WS connected');
+        reconnectMs = 500; // reset backoff
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data && data.type === 'rfid') {
+            // update UI
+            if (uidEl) uidEl.textContent = data.rfid_uid || '';
+            if (tsEl) tsEl.textContent = data.timestamp || '';
+                if (assignBtn) assignBtn.disabled = false;
+                if (pendingArea && pendingArea.innerHTML.indexOf('Waiting') !== -1) {
+              // replace waiting text with full panel if needed
+              // keep existing DOM as template already contains panel
+            }
+                showBanner('RFID detected: ' + (data.rfid_uid || ''));
+          }
+        } catch (e) {
+          console.error('Invalid WS message', e);
+        }
+      };
+      ws.onclose = () => {
+        console.log('RFID WS closed, reconnecting in', reconnectMs);
+        setTimeout(connectWs, reconnectMs);
+        reconnectMs = Math.min(10000, reconnectMs * 1.5);
+      };
+      ws.onerror = (e) => {
+        console.error('RFID WS error', e);
+        ws.close();
+      };
+    }
+
+    connectWs();
+
+    // AJAX assign remains but show banner instead of alert
+  // AJAX assign remains but show banner instead of alert
+  if (assignForm) {
+      assignForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const formData = new FormData(assignForm);
+        try {
+          const res = await fetch('/admin/rfid/assign_ajax', { method: 'POST', body: formData, credentials: 'same-origin' });
+          const data = await res.json();
+          if (data.success) {
+            showBanner(data.message || 'RFID assigned');
+            setTimeout(() => { window.location.href = '/admin/employees'; }, 900);
+          } else {
+            showBanner('Error: ' + (data.error || 'Unknown'));
+          }
+        } catch (e) {
+          showBanner('Request failed');
+        }
+      });
+    }
+
+    // Write & assign flow: writes to RC522 tag then assigns UID to employee
+    const writeBtn = document.getElementById('write-btn');
+    if (writeBtn) {
+      writeBtn.addEventListener('click', async function () {
+        const sel = document.getElementById('employee_select');
+        const employee_id = sel ? sel.value : null;
+  if (!employee_id) { showBanner('Select an employee before writing'); return; }
+  writeBtn.disabled = true;
+  showBanner('Waiting for tag to write... (place the tag on the reader)', 10000);
+        try {
+          const res = await fetch('/rfid/write_assign', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: employee_id, performed_by: 'admin' })
+          });
+          const data = await res.json();
+          if (res.ok && data.status === 'ok') {
+            showBanner('Tag written and assigned: ' + data.rfid_uid, 5000);
+            setTimeout(() => { window.location.href = '/admin/employees'; }, 900);
+          } else {
+            showBanner('Error: ' + (data.detail || data.error || 'Could not write/assign'));
+          }
+        } catch (e) {
+          showBanner('Failed to write tag: ' + e);
+        } finally {
+          writeBtn.disabled = false;
+        }
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async function () {
+        try {
+          await fetch('/admin/rfid/clear', { method: 'POST', credentials: 'same-origin' });
+          showBanner('Tag cleared');
+          // clear UI
+          if (uidEl) uidEl.textContent = '';
+          if (tsEl) tsEl.textContent = '';
+          if (assignBtn) assignBtn.disabled = true;
+        } catch (e) {
+          showBanner('Could not clear tag');
+        }
+      });
+    }
+  </script>
+{% endblock %}

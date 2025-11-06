@@ -186,6 +186,9 @@ check_and_install_deps() {
   dpkg -s libssl-dev >/dev/null 2>&1 || missing+=(libssl-dev)
   dpkg -s libffi-dev >/dev/null 2>&1 || missing+=(libffi-dev)
   dpkg -s python3-dev >/dev/null 2>&1 || missing+=(python3-dev)
+  # SPI and GPIO packages useful on Raspberry Pi
+  dpkg -s python3-spidev >/dev/null 2>&1 || missing+=(python3-spidev)
+  dpkg -s python3-rpi.gpio >/dev/null 2>&1 || missing+=(python3-rpi.gpio)
   # GUI dialogs (zenity) can be useful on RPi Desktop
   dpkg -s zenity >/dev/null 2>&1 || missing+=(zenity)
 
@@ -209,6 +212,65 @@ check_and_install_deps() {
 }
 
 check_and_install_deps
+
+# Intento de instalar Chromium si estamos en instalación a nivel sistema y apt está disponible
+install_chromium_if_possible() {
+  # Try several strategies to install Chromium. For system installs we use apt.
+  export DEBIAN_FRONTEND=noninteractive
+  if command -v apt-get >/dev/null 2>&1; then
+    if [ "${INSTALL_MODE:-system}" = "system" ]; then
+      echo "Intentando instalar Chromium (chromium-browser | chromium) via apt-get..."
+      apt-get update -y || true
+      if apt-get install -y chromium-browser; then
+        echo "chromium-browser instalado"
+        return 0
+      fi
+      if apt-get install -y chromium; then
+        echo "chromium instalado"
+        return 0
+      fi
+      echo "No se pudo instalar Chromium automáticamente (paquetes chromium-browser/chromium). Continúa sin kiosk instalado." 
+      return 0
+    else
+      # Local install but apt is available on the system. Ask for elevation to install system package.
+      if command -v pkexec >/dev/null 2>&1; then
+        echo "Instalación local detectada, pero apt está presente. Intentando instalar Chromium mediante elevación (pkexec)..."
+        pkexec env DEBIAN_FRONTEND=noninteractive apt-get update -y || true
+        if pkexec env DEBIAN_FRONTEND=noninteractive apt-get install -y chromium-browser; then
+          echo "chromium-browser instalado (con pkexec)"
+          return 0
+        fi
+        if pkexec env DEBIAN_FRONTEND=noninteractive apt-get install -y chromium; then
+          echo "chromium instalado (con pkexec)"
+          return 0
+        fi
+        echo "No se pudo instalar Chromium con pkexec; por favor instala manualmente: sudo apt-get install -y chromium-browser"
+        return 0
+      else
+        echo "apt-get está disponible pero no hay forma de elevar privilegios desde este contexto (pkexec ausente)."
+        echo "Por favor instala Chromium manualmente, por ejemplo: sudo apt-get install -y chromium-browser"
+        return 0
+      fi
+    fi
+  fi
+
+  # If apt is not available, try flatpak as a user-local install option
+  if command -v flatpak >/dev/null 2>&1; then
+    echo "apt-get no disponible — intentando instalar Chromium vía flatpak (usuario local)..."
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo || true
+    if flatpak install -y flathub org.chromium.Chromium; then
+      echo "Chromium instalado vía flatpak"
+      return 0
+    else
+      echo "No se pudo instalar Chromium vía flatpak. Continúa sin kiosk instalado."
+      return 0
+    fi
+  fi
+
+  echo "No se pudo instalar Chromium automáticamente (ni apt ni flatpak disponibles). Para usar el kiosk instala Chromium manualmente o utiliza una instalación a nivel sistema."
+}
+
+install_chromium_if_possible
 
 # If GUI is available prompt for options
 if use_gui; then
@@ -312,6 +374,8 @@ install -m 0755 "$REPO_DIR/tools/picontrol-firstboot.sh" "$FIRSTBOOT_BIN"
 install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret.sh" "/usr/local/bin/picontrol-rotate-secret.sh"
 install -m 0755 "$REPO_DIR/tools/picontrol-cleanup.sh" "/usr/local/bin/picontrol-cleanup.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-restart.sh" "/usr/local/bin/picontrol-restart.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-kiosk.sh" "/usr/local/bin/picontrol-kiosk.sh" || true
+install -m 0755 "$REPO_DIR/tools/picontrol-write-rfid" "/usr/local/bin/picontrol-write-rfid" || true
 # Install GUI wrappers (if present in repo)
 install -m 0755 "$REPO_DIR/tools/picontrol-reset-admin-gui.sh" "/usr/local/bin/picontrol-reset-admin-gui.sh" || true
 install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "/usr/local/bin/picontrol-rotate-secret-gui.sh" || true
@@ -328,29 +392,11 @@ if [ "${INSTALL_MODE:-system}" = "local" ]; then
   install -m 0755 "$REPO_DIR/tools/picontrol-rotate-secret-gui.sh" "$HOME/.local/bin/picontrol-rotate-secret-gui.sh" || true
   install -m 0755 "$REPO_DIR/tools/picontrol-restart-gui.sh" "$HOME/.local/bin/picontrol-restart-gui.sh" || true
   install -m 0755 "$REPO_DIR/tools/picontrol-firstboot-gui.sh" "$HOME/.local/bin/picontrol-firstboot-gui.sh" || true
+  install -m 0755 "$REPO_DIR/tools/picontrol-write-rfid" "$HOME/.local/bin/picontrol-write-rfid" || true
 fi
 
 # --- Privilegios delegados para reiniciar (system install) ---
-if [ "${INSTALL_MODE:-system}" = "system" ]; then
-  # Crear grupo limitado para admins de picontrol
-  if ! getent group picontrol-admins >/dev/null 2>&1; then
-    echo "Creando grupo 'picontrol-admins'..."
-    groupadd --system picontrol-admins || true
-  fi
-  # Añadir el usuario del servicio al grupo para permitir reinicios sin contraseña
-  if id -u "$SERVICE_USER" >/dev/null 2>&1; then
-    usermod -aG picontrol-admins "$SERVICE_USER" || true
-  fi
-
-  # Crear una entrada sudoers específica y segura para permitir reinicios sin contraseña
-  SUDOERS_FILE="/etc/sudoers.d/picontrol"
-  cat > "$SUDOERS_FILE" <<'SUDO'
-# Permitir a miembros de picontrol-admins reiniciar los servicios de PiControl sin contraseña
-%picontrol-admins ALL=(root) NOPASSWD: /usr/local/bin/picontrol-restart.sh
-SUDO
-  chmod 0440 "$SUDOERS_FILE" || true
-  echo "Archivo sudoers creado en $SUDOERS_FILE (permite ejecutar /usr/local/bin/picontrol-restart.sh sin contraseña para el grupo picontrol-admins)."
-fi
+# El fichero sudoers se crea después de decidir el usuario de servicio (SERVICE_USER).
 
 progress_update 60 "Instalando servicios systemd y configurando unidades..."
 
@@ -368,12 +414,89 @@ fi
 # Crear e instalar unidad systemd para la API (picontrol.service)
 PICONTROL_SERVICE_FILE="/etc/systemd/system/picontrol.service"
 
-# Crear usuario de servicio específico si no existe
-SERVICE_USER="picontrol"
-if [ "${INSTALL_MODE:-system}" = "system" ]; then
+# Detectar usuario de escritorio (si no se pasó --user)
+DESKTOP_USER=""
+if [ -n "$USER_ARG" ]; then
+  DESKTOP_USER="$USER_ARG"
+else
+  if id -u pi >/dev/null 2>&1; then
+    DESKTOP_USER=pi
+  else
+    DESKTOP_USER=$(awk -F: '$3==1000{print $1; exit}' /etc/passwd || true)
+  fi
+fi
+
+# Determinar el usuario que usará los servicios. Si hay un usuario de escritorio válido, lo usamos;
+# en caso contrario creamos un usuario de sistema 'picontrol'.
+SERVICE_USER=""
+CREATE_SYSTEM_USER="no"
+if [ -n "$DESKTOP_USER" ] && getent passwd "$DESKTOP_USER" >/dev/null 2>&1; then
+  SERVICE_USER="$DESKTOP_USER"
+  CREATE_SYSTEM_USER="no"
+  echo "Usando usuario de sesión para los servicios: $SERVICE_USER"
+else
+  SERVICE_USER="picontrol"
+  CREATE_SYSTEM_USER="yes"
+  echo "No se detectó usuario de sesión; se usará el usuario de servicio: $SERVICE_USER"
+fi
+
+# Crear usuario de servicio específico si hace falta (solo en instalación sistema)
+if [ "${INSTALL_MODE:-system}" = "system" ] && [ "$CREATE_SYSTEM_USER" = "yes" ]; then
   if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
     echo "Creando usuario de servicio $SERVICE_USER ..."
     useradd --system --no-create-home --home-dir "$TARGET_LIB_DIR" --shell /usr/sbin/nologin "$SERVICE_USER" || true
+  fi
+fi
+
+# Crear privilegios sudoers para permitir ejecutar scripts administrativos como root
+SUDOERS_FILE="/etc/sudoers.d/picontrol"
+if [ "${INSTALL_MODE:-system}" = "system" ]; then
+  if [ "$CREATE_SYSTEM_USER" = "yes" ]; then
+    if ! getent group picontrol-admins >/dev/null 2>&1; then
+      echo "Creando grupo 'picontrol-admins'..."
+      groupadd --system picontrol-admins || true
+    fi
+    if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+      usermod -aG picontrol-admins "$SERVICE_USER" || true
+    fi
+    # Añadir usuario a grupos de hardware para permitir acceso a SPI/GPIO en Raspberry Pi
+    if getent group gpio >/dev/null 2>&1; then
+      usermod -aG gpio "$SERVICE_USER" || true
+    fi
+    if getent group spi >/dev/null 2>&1; then
+      usermod -aG spi "$SERVICE_USER" || true
+    fi
+    cat > "$SUDOERS_FILE" <<SUDO
+# Permitir a miembros de picontrol-admins ejecutar scripts administrativos de PiControl sin contraseña
+%picontrol-admins ALL=(root) NOPASSWD: /usr/local/bin/picontrol-restart.sh, /usr/local/bin/picontrol-rotate-secret.sh, /usr/local/bin/picontrol-reset-admin.sh
+SUDO
+    chmod 0440 "$SUDOERS_FILE" || true
+    echo "Archivo sudoers creado en $SUDOERS_FILE para el grupo picontrol-admins."
+  else
+    # Permitir al usuario de sesión ejecutar scripts administrativos sin contraseña
+    if [ -n "$SERVICE_USER" ]; then
+      cat > "$SUDOERS_FILE" <<SUDO
+# Permitir al usuario $SERVICE_USER ejecutar scripts administrativos de PiControl sin contraseña
+$SERVICE_USER ALL=(root) NOPASSWD: /usr/local/bin/picontrol-restart.sh, /usr/local/bin/picontrol-rotate-secret.sh, /usr/local/bin/picontrol-reset-admin.sh
+SUDO
+      chmod 0440 "$SUDOERS_FILE" || true
+      echo "Archivo sudoers creado en $SUDOERS_FILE para el usuario $SERVICE_USER."
+      # Añadir usuario de sesión a grupos gpio/spi si existen para permitir acceso a RC522
+      if getent group gpio >/dev/null 2>&1; then
+        usermod -aG gpio "$SERVICE_USER" || true
+      fi
+      if getent group spi >/dev/null 2>&1; then
+        usermod -aG spi "$SERVICE_USER" || true
+      fi
+    fi
+    # Also install sudoers entry for the RC522 write wrapper if template exists
+    WRAPPER_SUDO_TEMPLATE="$REPO_DIR/install/picontrol-write-rfid.sudoers.template"
+    WRAPPER_SUDO_DEST="/etc/sudoers.d/picontrol-write-rfid"
+    if [ -f "$WRAPPER_SUDO_TEMPLATE" ]; then
+      sed "s/{SERVICE_USER}/$SERVICE_USER/g" "$WRAPPER_SUDO_TEMPLATE" | cat > "$WRAPPER_SUDO_DEST"
+      chmod 0440 "$WRAPPER_SUDO_DEST" || true
+      echo "Instalada entrada sudoers para picontrol-write-rfid en $WRAPPER_SUDO_DEST"
+    fi
   fi
 fi
 
@@ -448,6 +571,71 @@ if [ "${INSTALL_MODE:-system}" = "system" ]; then
   systemctl enable --now picontrol.service || true
 else
   echo "Instalación local: no se crea unidad systemd. Para ejecutar PiControl en modo local puedes lanzar: $REPO_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000"
+fi
+
+# Crear unidad para el kiosk:
+# - Si detectamos un usuario de sesión (CREATE_SYSTEM_USER=no) instalamos una unidad de usuario en
+#   $HOME/.config/systemd/user/ y habilitamos linger + la unidad (--user).
+# - Si no hay usuario de sesión, creamos una unidad system-wide en /etc/systemd/system/.
+if [ "${INSTALL_MODE:-system}" = "system" ] && [ -f "$REPO_DIR/install/picontrol-kiosk.service" ]; then
+  USER_HOME=$(getent passwd "$SERVICE_USER" | cut -d: -f6 2>/dev/null || echo "/home/$SERVICE_USER")
+  if [ "$CREATE_SYSTEM_USER" = "no" ]; then
+    echo "Instalando unidad systemd de usuario para el kiosk en $SERVICE_USER..."
+    USER_UNIT_DIR="$USER_HOME/.config/systemd/user"
+    mkdir -p "$USER_UNIT_DIR"
+    cat > "$USER_UNIT_DIR/picontrol-kiosk.service" <<EOF
+[Unit]
+Description=PiControl Kiosk (Chromium)
+After=graphical-session.target network.target
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+ExecStart=/usr/local/bin/picontrol-kiosk.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target
+EOF
+    chown -R "$SERVICE_USER":"$SERVICE_USER" "$USER_UNIT_DIR"
+    # Enable lingering so the user's --user services can run without an active login session
+    if command -v loginctl >/dev/null 2>&1; then
+      loginctl enable-linger "$SERVICE_USER" || true
+    fi
+    # Reload and enable the user unit as that user (use su to switch)
+    su - "$SERVICE_USER" -s /bin/bash -c "systemctl --user daemon-reload || true; systemctl --user enable --now picontrol-kiosk.service || true" || true
+  else
+    echo "Instalando unidad systemd system-wide para el kiosk (usuario $SERVICE_USER no disponible)..."
+    # Calcular home y variables X para permitir la conexión a la sesión gráfica del usuario
+    XAUTH_PATH="$USER_HOME/.Xauthority"
+    if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+      USER_UID=$(id -u "$SERVICE_USER")
+    else
+      USER_UID=1000
+    fi
+    XDG_RUNTIME="/run/user/$USER_UID"
+    cat > /etc/systemd/system/picontrol-kiosk.service <<EOF
+[Unit]
+Description=PiControl Kiosk (Chromium)
+After=graphical.target network.target
+
+[Service]
+Type=simple
+User=$SERVICE_USER
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=$XAUTH_PATH
+Environment=XDG_RUNTIME_DIR=$XDG_RUNTIME
+ExecStart=/usr/local/bin/picontrol-kiosk.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now picontrol-kiosk.service || true
+  fi
 fi
 
 progress_update 80 "Inicializando base de datos y ajustando permisos..."

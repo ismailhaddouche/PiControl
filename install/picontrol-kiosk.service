@@ -1,0 +1,16 @@
+[Unit]
+Description=PiControl Kiosk (Chromium)
+After=graphical.target network.target
+
+[Service]
+Type=simple
+# Use 'picontrol' as the default service user; the installer will adapt the unit to the actual service user when deployed.
+User=picontrol
+Environment=DISPLAY=:0
+ExecStart=/usr/local/bin/picontrol-kiosk.sh
+# Ensure the kiosk is always restarted if it crashes
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=graphical.target

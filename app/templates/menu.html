@@ -9,9 +9,9 @@
   <!-- Zona superior: botón / formulario de registro manual -->
   <section class="manual-register">
     <h3>Manual check-in</h3>
-    <form method="post" action="/admin/fichajes/manual" class="inline-form">
-      <label for="empleado_select">Select employee:</label>
-      <select id="empleado_select" name="empleado_id" required>
+    <form method="post" action="/admin/checkins/manual" class="inline-form">
+      <label for="employee_select">Select employee:</label>
+      <select id="employee_select" name="employee_id" required>
         <option value="">-- choose --</option>
         {% for e in employees %}
           <option value="{{ e.document_id }}">{{ e.name }}{% if e.rfid_uid %} ({{ e.rfid_uid }}){% endif %}</option>
@@ -25,19 +25,19 @@
   </section>
 
   <!-- Zona inferior: últimos 20 registros -->
-  <section class="recent-fichajes">
-    <h3>Last 20 entries <small><a href="/admin/fichajes">(view full history)</a></small></h3>
-    {% if recientes and recientes|length > 0 %}
+  <section class="recent-checkins">
+    <h3>Last 20 entries <small><a href="/admin/checkins">(view full history)</a></small></h3>
+    {% if recent_checkins and recent_checkins|length > 0 %}
       <table class="table">
         <thead>
-          <tr><th>Fecha</th><th>Empleado</th><th>Tipo</th></tr>
+          <tr><th>Date</th><th>Employee</th><th>Type</th></tr>
         </thead>
         <tbody>
-          {% for f in recientes %}
+          {% for f in recent_checkins %}
             <tr>
-              <td>{{ f.timestamp|format_datetime }}</td>
-              <td>{{ employees_map.get(f.empleado_id, f.empleado_id) }}</td>
-              <td>{{ f.tipo }}</td>
+              <td class="ci-timestamp">{{ f.timestamp|format_datetime }}</td>
+              <td class="ci-employee">{{ employees_map.get(f.employee_id, f.employee_id) }}</td>
+              <td class="ci-type">{{ f.type }}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -46,4 +46,33 @@
       <p>No recent entries.</p>
     {% endif %}
   </section>
+  
+  {% block scripts %}
+  <script>
+    // WebSocket to receive real-time checkins and prepend them to the recent table
+    function makeWsUrl(path) {
+      const protocol = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+      return protocol + '//' + location.host + path;
+    }
+    const ws = new WebSocket(makeWsUrl('/ws/rfid'));
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (!data) return;
+        if (data.type === 'checkin') {
+          const tbody = document.querySelector('.recent-checkins table tbody');
+          if (!tbody) return;
+          const tr = document.createElement('tr');
+          const tdTime = document.createElement('td'); tdTime.textContent = new Date(data.timestamp).toLocaleString(); tdTime.className='ci-timestamp';
+          const tdEmp = document.createElement('td'); tdEmp.textContent = data.employee_name || data.employee_id; tdEmp.className='ci-employee';
+          const tdType = document.createElement('td'); tdType.textContent = data.checkin_type; tdType.className='ci-type';
+          tr.appendChild(tdTime); tr.appendChild(tdEmp); tr.appendChild(tdType);
+          if (tbody.firstChild) tbody.insertBefore(tr, tbody.firstChild);
+        }
+      } catch (e) {
+        console.error('ws msg', e);
+      }
+    };
+  </script>
+  {% endblock %}
 {% endblock %}

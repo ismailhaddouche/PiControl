@@ -14,6 +14,8 @@ from logging.handlers import TimedRotatingFileHandler
 
 from app.db import init_db
 from app.routers import employees, checkins, web
+from app.routers import rfid as rfid_router
+from app import rfid as rfid_service
 
 app = FastAPI(title="PiControl - API")
 
@@ -60,6 +62,7 @@ setup_admin_logging()
 app.include_router(employees.router)
 app.include_router(checkins.router)
 app.include_router(web.router)
+app.include_router(rfid_router.router)
 
 # Mount static folder (optional)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -74,5 +77,23 @@ init_db()
 def root_redirect():
 	"""Redirect root to admin panel for a more direct experience."""
 	return RedirectResponse(url="/admin")
+
+
+@app.on_event("startup")
+def _start_rfid_service():
+	# Start hardware RFID listener if configured via environment
+	try:
+		rfid_service.start_service_if_configured()
+	except Exception:
+		logger = logging.getLogger("picontrol.rfid")
+		logger.exception("Failed to start RFID service on startup")
+
+
+@app.on_event("shutdown")
+def _stop_rfid_service():
+	try:
+		rfid_service.stop_service()
+	except Exception:
+		pass
 
 

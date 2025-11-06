@@ -1,18 +1,18 @@
 {% extends 'base.html' %}
 
-{% block title %}History - {{ empleado.name }}{% endblock %}
+{% block title %}History - {{ employee.name }}{% endblock %}
 
 {% block content %}
-  <h2>Check-in history - {{ empleado.name }} ({{ empleado.document_id }})</h2>
-  <p><a href="/admin/employees/archivados">Back to archive</a></p>
-  {% if fichas and fichas|length > 0 %}
+  <h2>Check-in history - {{ employee.name }} ({{ employee.document_id }})</h2>
+  <p><a href="/admin/employees">Back to employees</a></p>
+  {% if checkins and checkins|length > 0 %}
     <table class="table">
       <thead><tr><th>Date</th><th>Type</th></tr></thead>
       <tbody>
-        {% for f in fichas %}
+        {% for f in checkins %}
           <tr>
             <td>{{ f.timestamp|format_datetime }}</td>
-            <td>{{ f.tipo }}</td>
+            <td>{{ f.type }}</td>
           </tr>
         {% endfor %}
       </tbody>

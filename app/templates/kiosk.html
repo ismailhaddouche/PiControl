@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}PiControl Kiosk{% endblock %}
+
+{% block content %}
+  <style>
+    body.kiosk { background: #0b1220; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; }
+    .kiosk-container { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+    .time { font-size:6vmax; font-weight:600; margin-bottom:1vmax; }
+    .message { font-size:4vmax; margin:0.5vmax 0; }
+    .employee { font-size:5vmax; font-weight:700; margin-bottom:1vmax; }
+    .status-circle { width:12vmax; height:12vmax; border-radius:50%; margin:1vmax; box-shadow:0 0 30px rgba(0,0,0,0.4); }
+    .status-row { display:flex; align-items:center; gap:2vmax; }
+    .small { font-size:2.2vmax; opacity:0.9 }
+    .hidden { display:none }
+    .center { text-align:center }
+  </style>
+
+  <div class="kiosk-container center">
+    <div class="time" id="kiosk-time">--:--:--</div>
+  <div class="message" id="kiosk-message">Present your tag</div>
+    <div class="employee" id="kiosk-employee"></div>
+
+    <div class="status-row">
+      <div id="status-circle" class="status-circle" style="background:#444;"></div>
+    </div>
+
+  <div class="small" id="kiosk-sub">Waiting for RFID reader...</div>
+  <div class="small hidden" id="kiosk-assigned">RFID assigned successfully.</div>
+  </div>
+
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    // Kiosk JS: connect to websocket and display messages
+    function makeWsUrl(path) {
+      const protocol = (location.protocol === 'https:') ? 'wss:' : 'ws:';
+      return protocol + '//' + location.host + path;
+    }
+
+    const timeEl = document.getElementById('kiosk-time');
+    const msgEl = document.getElementById('kiosk-message');
+    const empEl = document.getElementById('kiosk-employee');
+    const circle = document.getElementById('status-circle');
+    const sub = document.getElementById('kiosk-sub');
+    const assignedEl = document.getElementById('kiosk-assigned');
+
+    function updateClock() {
+      const d = new Date();
+      timeEl.textContent = d.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    let ws = new WebSocket(makeWsUrl('/ws/rfid'));
+    ws.onopen = () => {
+      console.log('kiosk ws open');
+      sub.textContent = 'Connected to server';
+    };
+    ws.onclose = () => { sub.textContent = 'Disconnected, reconnecting...'; setTimeout(()=>{ ws = new WebSocket(makeWsUrl('/ws/rfid')) }, 1500); };
+    ws.onerror = (e) => console.error('ws error', e);
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (!data) return;
+        // types: checkin, rfid_unknown, rfid_assigned
+        if (data.type === 'checkin') {
+          // success: green for entry, blue for exit
+          const t = (data.checkin_type === 'entry') ? '#1abc9c' : '#3498db';
+          circle.style.background = t;
+          msgEl.textContent = data.message || (data.checkin_type === 'entry' ? 'Welcome' : 'Goodbye');
+          empEl.textContent = data.employee_name || data.employee_id || '';
+          assignedEl.classList.add('hidden');
+          // flash effect
+          circle.style.boxShadow = `0 0 40px ${t}`;
+          setTimeout(()=>{ circle.style.boxShadow='0 0 30px rgba(0,0,0,0.4)'; }, 800);
+        } else if (data.type === 'rfid_unknown') {
+          circle.style.background = '#e74c3c';
+          msgEl.textContent = 'Unrecognized tag';
+          empEl.textContent = data.rfid_uid || '';
+          assignedEl.classList.add('hidden');
+        } else if (data.type === 'rfid_assigned') {
+          circle.style.background = '#f1c40f';
+          msgEl.textContent = 'RFID assigned';
+          empEl.textContent = data.employee_name || '';
+          assignedEl.classList.remove('hidden');
+          setTimeout(()=>{ assignedEl.classList.add('hidden'); }, 3000);
+        }
+      } catch (e) { console.error(e); }
+    };
+  </script>
+{% endblock %}

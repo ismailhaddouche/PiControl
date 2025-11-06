@@ -12,7 +12,7 @@
 
   <section>
     <h3>Administrator</h3>
-    <form method="post" action="/admin/configuracion/change_password">
+  <form method="post" action="/admin/configuration/change_password">
       <div>
         <label>New password</label>
         <input type="password" name="new_password" required />
@@ -28,9 +28,9 @@
   <section>
     <h3>Database</h3>
     <p>
-      <a class="button" href="/admin/configuracion/export_db">Download DB copy</a>
+  <a class="button" href="/admin/configuration/export_db">Download DB copy</a>
     </p>
-    <form method="post" action="/admin/configuracion/import_db" enctype="multipart/form-data">
+  <form method="post" action="/admin/configuration/import_db" enctype="multipart/form-data">
       <label>Import database file (.db)</label>
       <input type="file" name="file" accept=".db,.sqlite" required />
       <button type="submit">Import</button>
@@ -40,7 +40,7 @@
 
   <section>
     <h3>Time and Timezone</h3>
-    <form method="post" action="/admin/configuracion/set_timezone">
+  <form method="post" action="/admin/configuration/set_timezone">
       <label>Timezone</label>
       <div>
         <select name="timezone" required>
@@ -53,14 +53,14 @@
         <button type="submit">Set timezone</button>
       </div>
     </form>
-    <form method="post" action="/admin/configuracion/sync_time" style="margin-top:8px;">
+  <form method="post" action="/admin/configuration/sync_time" style="margin-top:8px;">
       <button type="submit">Sync time (NTP)</button>
     </form>
   </section>
 
   <section>
     <h3>Updates</h3>
-    <form method="post" action="/admin/configuracion/set_auto_update">
+  <form method="post" action="/admin/configuration/set_auto_update">
       <label>
         <input type="checkbox" name="enabled" {% if auto_update == 'true' %}checked{% endif %} /> Enable automatic updates
       </label>
