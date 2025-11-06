@@ -2425,6 +2425,4 @@ EOF
 
 **Document Version:** 1.0  
 **Last Updated:** November 2025  
-**Maintained By:** PiControl Security Team
-
-*This document should be reviewed and updated regularly to reflect evolving security best practices and emerging threats.*
+**Maintained By:** HismarDev
