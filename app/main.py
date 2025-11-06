@@ -19,8 +19,16 @@ from app import rfid as rfid_service
 
 app = FastAPI(title="PiControl - API")
 
-# Session middleware simple (dev) for web interface
-secret = os.environ.get("SECRET_KEY", "devsecret")
+# Session middleware - CRITICAL: SECRET_KEY must be set in production
+secret = os.environ.get("SECRET_KEY")
+if not secret:
+    import warnings
+    warnings.warn(
+        "SECRET_KEY not set! Using insecure default. "
+        "Set SECRET_KEY environment variable in production.",
+        RuntimeWarning
+    )
+    secret = "dev-insecure-change-me-in-production"
 app.add_middleware(SessionMiddleware, secret_key=secret)
 
 

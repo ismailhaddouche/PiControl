@@ -659,32 +659,64 @@ def admin_change_password(request: Request, new_password: str = Form(...), confi
 
 
 @router.get("/admin/configuration/export_db")
-def admin_export_db(request: Request):
+def admin_export_db(request: Request, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Ubicación relativa del archivo sqlite en el workspace (puede variar en despliegues)
-    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "pi_control.db"))
-    if not os.path.exists(db_path):
+    # Check if user is admin before allowing DB export (security)
+    username = request.session.get("user")
+    user = get_user(session, username) if username else None
+    if not user or not user.is_admin:
+        request.session["flash"] = "Admin privileges required"
+        return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
+    
+    # Use actual DB path from environment (production-safe)
+    from app.db import DB_PATH
+    if not os.path.exists(DB_PATH):
         request.session["flash"] = "Database file not found"
         return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
-    return FileResponse(db_path, media_type="application/x-sqlite3", filename="pi_control.db")
+    
+    # Log export action
+    try:
+        log_admin_action(session, username, "export_db", "Database exported")
+    except Exception:
+        pass
+    
+    return FileResponse(DB_PATH, media_type="application/x-sqlite3", filename="pi_control.db")
 
 
 @router.post("/admin/configuration/import_db")
-def admin_import_db(request: Request, file: UploadFile = File(...)):
+def admin_import_db(request: Request, file: UploadFile = File(...), session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    target_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "pi_control.db"))
+    # Check if user is admin before allowing DB import (critical security)
+    username = request.session.get("user")
+    user = get_user(session, username) if username else None
+    if not user or not user.is_admin:
+        request.session["flash"] = "Admin privileges required"
+        return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
+    
+    from app.db import DB_PATH
     try:
         # Guardar archivo subido en temporal y luego mover
-        tmp_path = target_path + ".upload_tmp"
+        tmp_path = DB_PATH + ".upload_tmp"
         with open(tmp_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
         # Reemplazar base de datos
-        shutil.move(tmp_path, target_path)
+        shutil.move(tmp_path, DB_PATH)
         request.session["flash"] = "Database imported. Restart the server if required."
+        # Log critical action
+        try:
+            log_admin_action(session, username, "import_db", f"Replaced database with uploaded file")
+        except Exception:
+            pass
     except Exception as e:
         request.session["flash"] = f"Error importing DB: {e}"
+        # Clean up temp file if it exists
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
     return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
 
 

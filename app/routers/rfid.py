@@ -178,9 +178,15 @@ async def api_rfid_write_assign(request: Request, payload: dict, session: Sessio
     if write_rc522_tag is None:
         raise HTTPException(status_code=503, detail="RC522 write support not available on server")
 
-    # Default write_text to employee_id if not provided
+    # Default write_text to employee_id if not provided; sanitize input
     if not write_text:
         write_text = str(employee_id)
+    else:
+        write_text = str(write_text)
+    
+    # Validate write_text length to prevent abuse (max 128 chars for safety)
+    if len(write_text) > 128:
+        raise HTTPException(status_code=400, detail="write_text too long (max 128 characters)")
 
     # require authenticated app admin
     if not session_user:
