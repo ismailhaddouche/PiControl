@@ -317,7 +317,6 @@ def admin_employees_archived(request: Request, session: Session = Depends(get_se
 def admin_employee_history(request: Request, employee_id: str, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # get employee and their check-in history
     employee = get_employee(session, employee_id)
     if not employee:
         return RedirectResponse(url="/admin/employees/archived", status_code=HTTP_302_FOUND)
@@ -335,7 +334,6 @@ def admin_employees_restore(request: Request, employee_id: str, session: Session
     restored = restore_employee(session, employee_id, performed_by=username)
     if restored:
         request.session["flash"] = f"Employee {employee_id} restored."
-    # Al restaurar, redirigir al listado de employees activos para que se vea inmediatamente
     return RedirectResponse(url="/admin/employees", status_code=HTTP_302_FOUND)
 
 
@@ -344,7 +342,6 @@ def admin_employees_add(request: Request, document_id: Optional[str] = Form(None
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     username = request.session.get("user")
-    # Prefer English form field names (document_id, name); fall back to old Spanish (dni, nombre)
     doc = document_id or dni
     nm = name or nombre
     if not doc or not nm:
@@ -353,7 +350,6 @@ def admin_employees_add(request: Request, document_id: Optional[str] = Form(None
     try:
         create_employee(session, document_id=doc, name=nm, rfid_uid=rfid_uid or None, performed_by=username)
     except TypeError:
-        # Defensive fallback to older signature
         create_employee(session, doc, nm, rfid_uid)
     return RedirectResponse(url="/admin/employees", status_code=HTTP_302_FOUND)
 
@@ -369,7 +365,7 @@ def admin_employees_assign(request: Request, employee_id: str, rfid_uid: str = F
 
 @router.post("/admin/employees/{employee_id}/assign_ajax")
 def admin_employees_assign_ajax(request: Request, employee_id: str, rfid_uid: str = Form(...), session: Session = Depends(get_session)):
-    """Endpoint JSON para asignar RFID (usado por JS)."""
+    """Assign RFID to employee and return JSON result."""
     if not require_login(request):
         return {"success": False, "error": "Not authenticated"}
     username = request.session.get("user")
@@ -381,10 +377,7 @@ def admin_employees_assign_ajax(request: Request, employee_id: str, rfid_uid: st
 
 @router.get("/admin/checkins", response_class=HTMLResponse)
 def admin_checkins(request: Request, employee_id: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None, session: Session = Depends(get_session)):
-    """History page with optional filters:
-    - employee_id: filter by employee (if not provided, show all)
-    - start, end: ISO datetime strings to limit the range (optional)
-    """
+    """Check-in history page with optional employee and date filters."""
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
 
@@ -404,10 +397,8 @@ def admin_checkins(request: Request, employee_id: Optional[str] = None, start: O
     except Exception:
         end_dt = None
 
-    # get filtered check-ins from the DB (more efficient)
     fichas = list_checkins(session, employee_id=employee_id, start=start_dt, end=end_dt)
 
-    # pass employee list for the filter select
     employees = list_employees(session)
     employees_map = {e.document_id: e.name for e in employees}
 
@@ -421,7 +412,6 @@ def admin_reports(request: Request, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     employees = list_employees(session)
-    # pass empty filter by default to avoid template errors
     filter_ctx = {"employee_id": None, "start": None, "end": None}
     employees = employees
     return templates.TemplateResponse("reports.html", {"request": request, "employees": employees, "employees": employees, "filter": filter_ctx})
@@ -429,14 +419,7 @@ def admin_reports(request: Request, session: Session = Depends(get_session)):
 
 @router.get("/admin/logs", response_class=HTMLResponse)
 def admin_logs(request: Request, start: Optional[str] = None, end: Optional[str] = None, admin: Optional[str] = None, action: Optional[str] = None, page: int = 1, page_size: int = 100, session: Session = Depends(get_session)):
-    """Page to view admin audit logs.
-
-    GET parameters:
-    - start, end: ISO datetime strings (e.g. 2025-11-05T00:00)
-    - admin: actor username
-    - action: filter by action
-    - page, page_size: pagination
-    """
+    """Admin audit log viewer with filters and pagination."""
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
 
@@ -455,14 +438,12 @@ def admin_logs(request: Request, start: Optional[str] = None, end: Optional[str]
     except Exception:
         end_dt = None
 
-    # pagination
     page = max(1, page)
     page_size = max(10, min(1000, page_size))
     offset = (page - 1) * page_size
 
     entries = list_admin_actions(session, start=start_dt, end=end_dt, admin_username=admin, action=action, limit=page_size, offset=offset)
 
-    # pass to template
     return templates.TemplateResponse(
         "admin_logs.html",
         {
@@ -486,7 +467,6 @@ def admin_reports_result(request: Request, employee_id: str, start: Optional[str
     end_dt = None
     try:
         if start:
-            # datetime-local inputs may not include timezone; parse as is
             start_dt = datetime.fromisoformat(start)
     except Exception:
         start_dt = None
@@ -496,19 +476,15 @@ def admin_reports_result(request: Request, employee_id: str, start: Optional[str
     except Exception:
         end_dt = None
 
-    # Get in/out pairs using existing helper
     total_hours, pairs = hours_worked(session, employee_id, start=start_dt, end=end_dt)
 
-    # Group hours per day, accounting for midnight crossings
     per_day_seconds = {}
     for entrada, salida, _ in pairs:
         if not salida:
             continue
         current = entrada
-        # normalizar tzinfo
         tz = entrada.tzinfo
         while current < salida:
-            # calcular el final del día para current
             next_day = (current + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             if tz is not None and next_day.tzinfo is None:
                 next_day = next_day.replace(tzinfo=tz)
@@ -524,10 +500,8 @@ def admin_reports_result(request: Request, employee_id: str, start: Optional[str
         hours = per_day_seconds[day] / 3600.0
         per_day.append((day, round(hours, 2)))
 
-    # total hours (use total_hours from hours_worked for compatibility)
     total_hours_rounded = round(total_hours, 2)
 
-    # pass employee id and period for template context
     return templates.TemplateResponse(
         "reports_result.html",
         {
@@ -544,13 +518,11 @@ def admin_reports_result(request: Request, employee_id: str, start: Optional[str
 
 @router.get("/admin/configuration", response_class=HTMLResponse)
 def admin_configuration(request: Request, session: Session = Depends(get_session)):
-    """Settings page - placeholder."""
+    """System settings page."""
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # obtener valores actuales de configuración
     auto_update = get_config(session, "auto_update") or "false"
     timezone_cfg = get_config(session, "timezone") or "UTC"
-    # Construir lista de zonas horarias utilizando zoneinfo (stdlib). Si falla, usar una lista corta por defecto.
     try:
         tz_list = sorted(available_timezones())
     except Exception:
@@ -572,26 +544,20 @@ def admin_configuration(request: Request, session: Session = Depends(get_session
 
 @router.get("/kiosk", response_class=HTMLResponse)
 def kiosk_view():
-    """Public kiosk view. Intentionally no login so Pi can open it at boot in kiosk mode."""
+    """Public kiosk view for RFID check-ins (no authentication required)."""
     return templates.TemplateResponse("kiosk.html", {"request": None})
 
 
 @router.post("/admin/restart")
 def admin_restart(request: Request, session: Session = Depends(get_session)):
-    """Endpoint seguro para que un admin inicie el reinicio de servicios de PiControl.
-
-    - Requiere estar autenticado.
-    - Ejecuta el wrapper `picontrol-restart.sh`.
+    """Restart PiControl service via wrapper script."""
     - Registra la acción en la tabla de auditoría y guarda un message flash.
-    """
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
 
     username = request.session.get("user")
-    # Preferir ejecutar con sudo si existe una regla específica instalada
     restart_cmd = None
     if os.path.exists("/etc/sudoers.d/picontrol"):
-        # usar sudo -n para evitar prompt interactivo si algo va mal
         restart_cmd = ["/usr/bin/sudo", "-n", "/usr/local/bin/picontrol-restart.sh"]
     else:
         restart_cmd = ["/usr/local/bin/picontrol-restart.sh"]
@@ -600,7 +566,6 @@ def admin_restart(request: Request, session: Session = Depends(get_session)):
         proc = subprocess.run(restart_cmd, check=False, capture_output=True, text=True)
         out = (proc.stdout or "") + "\n" + (proc.stderr or "")
         try:
-            # Grabar acción en BD (truncar a 2000 chars para evitar límites)
             log_admin_action(session, username or "unknown", "restart_service", out[:2000])
         except Exception:
             pass
@@ -638,20 +603,17 @@ def admin_change_password(request: Request, new_password: str = Form(...), confi
 def admin_export_db(request: Request, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Check if user is admin before allowing DB export (security)
     username = request.session.get("user")
     user = get_user(session, username) if username else None
     if not user or not user.is_admin:
         request.session["flash"] = "Admin privileges required"
         return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
     
-    # Use actual DB path from environment (production-safe)
     from app.db import DB_PATH
     if not os.path.exists(DB_PATH):
         request.session["flash"] = "Database file not found"
         return RedirectResponse(url="/admin/configuration", status_code=HTTP_302_FOUND)
     
-    # Log export action
     try:
         log_admin_action(session, username, "export_db", "Database exported")
     except Exception:
@@ -664,7 +626,6 @@ def admin_export_db(request: Request, session: Session = Depends(get_session)):
 def admin_import_db(request: Request, file: UploadFile = File(...), session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Check if user is admin before allowing DB import (critical security)
     username = request.session.get("user")
     user = get_user(session, username) if username else None
     if not user or not user.is_admin:
@@ -673,21 +634,17 @@ def admin_import_db(request: Request, file: UploadFile = File(...), session: Ses
     
     from app.db import DB_PATH
     try:
-        # Guardar archivo subido en temporal y luego mover
         tmp_path = DB_PATH + ".upload_tmp"
         with open(tmp_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
-        # Reemplazar base de datos
         shutil.move(tmp_path, DB_PATH)
         request.session["flash"] = "Database imported. Restart the server if required."
-        # Log critical action
         try:
             log_admin_action(session, username, "import_db", f"Replaced database with uploaded file")
         except Exception:
             pass
     except Exception as e:
         request.session["flash"] = f"Error importing DB: {e}"
-        # Clean up temp file if it exists
         try:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
@@ -700,9 +657,7 @@ def admin_import_db(request: Request, file: UploadFile = File(...), session: Ses
 def admin_set_timezone(request: Request, timezone: str = Form(...), session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Guardar en configuración y, opcionalmente, intentar aplicar con timedatectl
     set_config(session, "timezone", timezone)
-    # Intentar aplicar en el sistema (puede requerir privilegios)
     try:
         subprocess.run(["timedatectl", "set-timezone", timezone], check=True, capture_output=True)
         request.session["flash"] = f"Timezone set to {timezone}"
@@ -715,15 +670,12 @@ def admin_set_timezone(request: Request, timezone: str = Form(...), session: Ses
 def admin_sync_time(request: Request):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # Intentar forzar sincronización de hora. Puede requerir utilidades instaladas y permisos.
     try:
-        # Preferir timedatectl
         res = subprocess.run(["timedatectl", "set-ntp", "true"], check=True, capture_output=True)
         request.session["flash"] = "NTP synchronization enabled (timedatectl)"
     except Exception:
         try:
-            # Fallback a ntpdate
-            res = subprocess.run(["ntpdate", "-u", "pool.ntp.org"], check=True, capture_output=True)
+            subprocess.run(["ntpdate", "pool.ntp.org"], check=True, capture_output=True)
             request.session["flash"] = "Time synchronized with pool.ntp.org"
         except Exception as e:
             request.session["flash"] = f"Could not synchronize time: {e}"
