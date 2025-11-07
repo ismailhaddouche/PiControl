@@ -12,33 +12,36 @@ from fastapi.responses import RedirectResponse
 import logging
 from logging.handlers import TimedRotatingFileHandler
 
+from app.config import config
 from app.db import init_db
 from app.routers import employees, checkins, web
 from app.routers import rfid as rfid_router
 from app import rfid as rfid_service
 
-app = FastAPI(title="PiControl - API")
+app = FastAPI(
+    title=f"{config.APP_NAME} - API",
+    version=config.APP_VERSION,
+    description=config.APP_DESCRIPTION
+)
 
 # Session middleware - CRITICAL: SECRET_KEY must be set in production
-secret = os.environ.get("SECRET_KEY")
-if not secret:
-    import warnings
-    warnings.warn(
-        "SECRET_KEY not set! Using insecure default. "
-        "Set SECRET_KEY environment variable in production.",
-        RuntimeWarning
-    )
-    secret = "dev-insecure-change-me-in-production"
-app.add_middleware(SessionMiddleware, secret_key=secret)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=config.get_secret_key(),
+    session_cookie=config.SESSION_COOKIE_NAME,
+    max_age=config.SESSION_MAX_AGE,
+    same_site=config.SESSION_SAME_SITE,
+    https_only=config.SESSION_HTTPS_ONLY
+)
 
 
 def setup_admin_logging():
 	"""Configure a rotating logger for administrative actions.
 
-	Attempts to write to /var/log/picontrol/admin_actions.log by default. If not
-	possible, falls back to a local file within the project.
+	Attempts to write to configured log path. If not possible, falls back to a
+	local file within the project.
 	"""
-	log_path = os.environ.get("PICONTROL_ADMIN_LOG", "/var/log/picontrol/admin_actions.log")
+	log_path = config.ADMIN_LOG_PATH
 	try:
 		log_dir = os.path.dirname(log_path)
 		if log_dir:
@@ -62,6 +65,14 @@ def setup_admin_logging():
 		except Exception:
 			# último recurso: no vomitar error en arranque
 			pass
+
+
+# Ensure required directories exist
+config.ensure_directories()
+
+# Print configuration if in debug mode
+if config.DEBUG:
+	config.print_config()
 
 
 # configure audit logging before tables are created

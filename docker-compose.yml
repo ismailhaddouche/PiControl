@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  picontrol:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: picontrol-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for hot reload
+      - ./app:/app/app:ro
+      - ./tests:/app/tests:ro
+      # Mount data directories (persistent)
+      - picontrol-data:/var/lib/picontrol
+      - picontrol-logs:/var/log/picontrol
+      # Mount .env file
+      - ./.env:/app/.env:ro
+    environment:
+      - PICONTROL_DB_DIR=/var/lib/picontrol
+      - PICONTROL_ADMIN_LOG=/var/log/picontrol/admin_actions.log
+      - PICONTROL_APP_LOG=/var/log/picontrol/app.log
+      - DEBUG=1
+      - RELOAD=1
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    networks:
+      - picontrol-network
+
+volumes:
+  picontrol-data:
+    driver: local
+  picontrol-logs:
+    driver: local
+
+networks:
+  picontrol-network:
+    driver: bridge

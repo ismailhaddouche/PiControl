@@ -1,0 +1,222 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "picontrol"
+version = "1.0.0"
+description = "RFID-based employee time tracking system for Raspberry Pi"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "HismarDev", email = "your.email@example.com"}
+]
+maintainers = [
+    {name = "HismarDev", email = "your.email@example.com"}
+]
+keywords = [
+    "rfid",
+    "time-tracking",
+    "raspberry-pi",
+    "employee-management",
+    "attendance-system",
+    "fastapi"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Office/Business",
+    "Topic :: System :: Hardware",
+]
+dependencies = [
+    "fastapi>=0.95.0",
+    "uvicorn[standard]>=0.22.0",
+    "sqlmodel>=0.0.8",
+    "httpx>=0.24.0",
+    "passlib[bcrypt]>=1.7.4",
+    "itsdangerous>=2.1.2",
+    "python-multipart>=0.0.20",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+# Hardware dependencies (Raspberry Pi only)
+hardware = [
+    "evdev>=1.6.0",
+    "gpiozero>=1.7.0",
+    "mfrc522",
+]
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.0.0",
+]
+# Security scanning
+security = [
+    "safety>=2.3.0",
+    "bandit>=1.7.0",
+]
+# All dependencies
+all = [
+    "picontrol[hardware,dev,security]",
+]
+
+[project.urls]
+Homepage = "https://github.com/ismailhaddouche/PiControl"
+Repository = "https://github.com/ismailhaddouche/PiControl"
+Issues = "https://github.com/ismailhaddouche/PiControl/issues"
+Documentation = "https://github.com/ismailhaddouche/PiControl#readme"
+
+[project.scripts]
+picontrol = "app.main:app"
+
+[tool.setuptools]
+packages = ["app", "app.routers"]
+
+[tool.setuptools.package-data]
+app = ["static/*", "templates/*"]
+
+# Black configuration
+[tool.black]
+line-length = 120
+target-version = ['py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.venv
+  | \.pytest_cache
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+# Ruff configuration
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "ARG", # flake8-unused-arguments
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "W191",  # indentation contains tabs
+    "B904",  # Allow raising exceptions without from e, for HTTPException
+]
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "*.egg-info",
+    ".pytest_cache",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.ruff.isort]
+known-first-party = ["app"]
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # Start lenient, can tighten later
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "mfrc522.*",
+    "evdev.*",
+    "gpiozero.*",
+]
+ignore_missing_imports = true
+
+# pytest configuration
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "hardware: marks tests requiring hardware (RFID reader, GPIO)",
+]
+env = [
+    "PICONTROL_DB_DIR=.test_db",
+]
+
+# coverage configuration
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+# isort configuration
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = ["app"]
+skip_gitignore = true
