@@ -1,4 +1,4 @@
- from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple
 from sqlmodel import Session, select
 from sqlalchemy import desc, asc
 from .models import Employee, CheckIn, Config
