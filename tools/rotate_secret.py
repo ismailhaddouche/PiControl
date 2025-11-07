@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the SECRET_KEY for PiControl and write it to /etc/default/picontrol.
-
-For security this script does NOT persistently store a copy of the key in
-`/var/lib/picontrol/secret_key.txt` by default. It prints the new key to stdout
-and only creates a backup file when --backup is provided.
-
-This avoids leaving secret files on disk by default.
-"""
+"""Regenerate SECRET_KEY and update configuration file."""
 import argparse
 import os
 import secrets
@@ -23,7 +16,6 @@ def generate_secret(nbytes=32):
 
 def write_config(secret):
     content = f"# Configuration for PiControl\n# SECRET_KEY (do not share)\nSECRET_KEY={secret}\n"
-    # write atomically
     tmp = CONFIG_FILE + ".tmp"
     with open(tmp, "w") as f:
         f.write(content)
@@ -32,15 +24,11 @@ def write_config(secret):
     try:
         os.chown(CONFIG_FILE, 0, 0)
     except Exception:
-        # best-effort: if not root or on systems without uid 0 mapping, ignore
         pass
 
 
 def save_copy(secret):
-    """Create a backup copy of the secret in LIB_DIR with strict permissions.
-
-    This is opt-in and should only be used for one-time recovery; avoid leaving copies.
-    """
+    """Backup secret to file with strict permissions (opt-in only)."""
     os.makedirs(LIB_DIR, exist_ok=True)
     with open(OUT_FILE, "w") as f:
         f.write(f"SECRET_KEY={secret}\n")
@@ -63,7 +51,6 @@ def main():
     secret = generate_secret()
     write_config(secret)
 
-    # Print the new secret to stdout so the operator can copy it (one-time)
     print("=== New SECRET_KEY (one-time output) ===")
     print(secret)
     print("======================================")

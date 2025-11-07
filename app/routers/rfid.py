@@ -8,7 +8,6 @@ from datetime import datetime
 from app import rfid as rfid_service
 import asyncio
 
-# lazy import of RC522 write helper
 try:
     from app.rfid import write_rc522_tag
 except Exception:
@@ -47,12 +46,7 @@ def api_rfid_pending():
 
 @router.post("/rfid/assign")
 def api_rfid_assign(request: Request, payload: dict, session: Session = Depends(get_session)):
-    """Assign the pending RFID to an employee.
-
-    Payload: { "employee_id": "<document_id>" }
-    The authenticated session user will be used as the actor (performed_by) for audit logs.
-    """
-    # require authenticated app admin
+    """Assign pending RFID to employee. Requires admin authentication."""
     session_user = None
     try:
         session_user = request.session.get("user")
@@ -82,14 +76,12 @@ def api_rfid_assign(request: Request, payload: dict, session: Session = Depends(
     if not rfid_uid:
         raise HTTPException(status_code=400, detail="Invalid pending RFID payload")
 
-    # use session user as performed_by for audit
     performed_by = session_user
 
     employee = assign_rfid(session, employee_id, rfid_uid, performed_by=performed_by)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     _clear_pending()
-    # broadcast assignment event
     try:
         from app.rfid import push_event
         push_event({"type": "rfid_assigned", "rfid_uid": rfid_uid, "employee_id": employee.document_id, "employee_name": employee.name, "timestamp": datetime.utcnow().isoformat()})
@@ -100,12 +92,7 @@ def api_rfid_assign(request: Request, payload: dict, session: Session = Depends(
 
 @router.post("/rfid/mock")
 def api_rfid_mock(request: Request, payload: dict, session: Session = Depends(get_session)):
-    """Inject a fake tag for testing. Only intended for development/test environments.
-
-    Payload: { "rfid_uid": "..." }
-    Protected: only app admins can call this endpoint.
-    """
-    # require authenticated app admin
+    """Inject fake RFID tag for testing. Development/test environments only."""
     session_user = None
     try:
         session_user = request.session.get("user")
@@ -127,7 +114,6 @@ def api_rfid_mock(request: Request, payload: dict, session: Session = Depends(ge
     uid = payload.get("rfid_uid")
     if not uid:
         raise HTTPException(status_code=400, detail="rfid_uid required")
-    # lazy import to avoid hardware deps at module import time
     try:
         from app.rfid import inject_tag
         inject_tag(uid)
@@ -138,12 +124,10 @@ def api_rfid_mock(request: Request, payload: dict, session: Session = Depends(ge
 
 @router.websocket("/ws/rfid")
 async def websocket_rfid(ws: WebSocket):
-    """WebSocket endpoint that streams RFID events in real-time as JSON messages."""
+    """Stream RFID events to WebSocket clients in real-time."""
     await ws.accept()
     try:
-        # register this websocket to receive broadcasts
         rfid_service.register_websocket(ws)
-        # keep connection open until client disconnects
         while True:
             try:
                 await ws.receive_text()
@@ -158,12 +142,8 @@ async def websocket_rfid(ws: WebSocket):
 
 @router.post("/rfid/write_assign")
 async def api_rfid_write_assign(request: Request, payload: dict, session: Session = Depends(get_session)):
-    """Write employee identifier to an RC522 tag and assign the tag UID to the employee.
-
-    Payload: { "employee_id": "<document_id>", "performed_by": "admin", "write_text": "optional text to write" }
-    """
+    """Write employee ID to RC522 tag and assign tag UID to employee."""
     employee_id = payload.get("employee_id")
-    # prefer the authenticated session user as the actor
     session_user = None
     try:
         session_user = request.session.get("user")
@@ -178,17 +158,14 @@ async def api_rfid_write_assign(request: Request, payload: dict, session: Sessio
     if write_rc522_tag is None:
         raise HTTPException(status_code=503, detail="RC522 write support not available on server")
 
-    # Default write_text to employee_id if not provided; sanitize input
     if not write_text:
         write_text = str(employee_id)
     else:
         write_text = str(write_text)
     
-    # Validate write_text length to prevent abuse (max 128 chars for safety)
     if len(write_text) > 128:
         raise HTTPException(status_code=400, detail="write_text too long (max 128 characters)")
 
-    # require authenticated app admin
     if not session_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     try:
@@ -208,10 +185,8 @@ async def api_rfid_write_assign(request: Request, payload: dict, session: Sessio
 
     if write_rc522_tag is not None:
         try:
-            # run blocking RC522 write in thread
             uid, stored = await asyncio.to_thread(write_rc522_tag, write_text)
         except Exception as e:
-            # if direct write fails (permissions or runtime), attempt wrapper fallback
             use_wrapper = True
             write_err = e
     else:
@@ -220,10 +195,8 @@ async def api_rfid_write_assign(request: Request, payload: dict, session: Sessio
     if use_wrapper:
         import shutil
         if not shutil.which(wrapper_path):
-            # no wrapper available
             raise HTTPException(status_code=503, detail=f"RC522 write not available and wrapper not found: {write_err}")
         try:
-            # run wrapper with sudo; it will output UID\nstored_text on success
             proc = await asyncio.create_subprocess_exec("sudo", wrapper_path, write_text, "--timeout", "30", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
             out, err = await proc.communicate()
             if proc.returncode != 0:
@@ -236,12 +209,10 @@ async def api_rfid_write_assign(request: Request, payload: dict, session: Sessio
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to write RC522 tag via wrapper: {e}")
 
-    # Now assign in DB
     try:
         employee = assign_rfid(session, employee_id, str(uid), performed_by=performed_by)
         if not employee:
             raise HTTPException(status_code=404, detail="Employee not found")
-        # Broadcast assignment event
         try:
             from app.rfid import push_event
             push_event({"type": "rfid_assigned", "rfid_uid": str(uid), "employee_id": employee.document_id, "employee_name": employee.name, "timestamp": datetime.utcnow().isoformat()})

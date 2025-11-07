@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Cleanup old check-ins and employees.
-
-By default deletes check-ins older than 4 years + 1 day.
-Optionally deletes archived employees with old archived_at or inactive employees
-(no recent check-ins) when --delete-employees is provided.
-
-Creates a backup of the database before modifying it.
-"""
+"""Delete old check-ins and optionally archived/inactive employees."""
 from __future__ import annotations
 import argparse
 import shutil
@@ -59,14 +52,11 @@ def main():
         print("Dry-run: skipping backup")
 
     engine = get_engine()
-    # Note: get_engine uses PICONTROL_DB_DIR default; ensure it points to args.db_path location if overriden
-    # If the engine points elsewhere, user should set PICONTROL_DB_DIR env var when running.
 
     to_delete_employees = []
     deleted_checkins = 0
 
     with Session(engine) as session:
-        # Delete check-ins older than cutoff
         stmt = select(CheckIn).where(CheckIn.timestamp <= cutoff)
         old_checkins = session.exec(stmt).all()
         print(f"Found {len(old_checkins)} check-ins older than cutoff")
@@ -85,7 +75,6 @@ def main():
                     remove = True
                     reason = f"archived_at {e.archived_at} <= cutoff"
                 else:
-                    # check last check-in
                     last_stmt = select(CheckIn).where(CheckIn.employee_id == e.document_id).order_by(CheckIn.timestamp.desc())
                     last = session.exec(last_stmt).first()
                     if not last or last.timestamp <= cutoff:

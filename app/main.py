@@ -1,7 +1,6 @@
 import warnings
 
-# Suppress deprecation warning related to the 'crypt' module that some environments
-# emit through passlib (dev only). This avoids noise in tests.
+# Suppress passlib deprecation warnings in dev/test environments
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.utils")
 
 from fastapi import FastAPI
@@ -24,7 +23,7 @@ app = FastAPI(
     description=config.APP_DESCRIPTION
 )
 
-# Session middleware - CRITICAL: SECRET_KEY must be set in production
+# Configure session management with secure defaults
 app.add_middleware(
     SessionMiddleware,
     secret_key=config.get_secret_key(),
@@ -36,10 +35,9 @@ app.add_middleware(
 
 
 def setup_admin_logging():
-	"""Configure a rotating logger for administrative actions.
-
-	Attempts to write to configured log path. If not possible, falls back to a
-	local file within the project.
+	"""Configure rotating file logger for admin actions.
+	
+	Falls back to local directory if configured path is not writable.
 	"""
 	log_path = config.ADMIN_LOG_PATH
 	try:
@@ -47,7 +45,6 @@ def setup_admin_logging():
 		if log_dir:
 			os.makedirs(log_dir, exist_ok=True)
 	except Exception:
-		# fallback to a path within the project
 		log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "admin_actions.log"))
 		try:
 			os.makedirs(os.path.dirname(log_path), exist_ok=True)
@@ -63,19 +60,14 @@ def setup_admin_logging():
 			handler.setFormatter(formatter)
 			logger.addHandler(handler)
 		except Exception:
-			# último recurso: no vomitar error en arranque
-			pass
+			pass  # Silent fail on startup to avoid breaking the app
 
 
-# Ensure required directories exist
 config.ensure_directories()
 
-# Print configuration if in debug mode
 if config.DEBUG:
 	config.print_config()
 
-
-# configure audit logging before tables are created
 setup_admin_logging()
 
 app.include_router(employees.router)
@@ -83,24 +75,22 @@ app.include_router(checkins.router)
 app.include_router(web.router)
 app.include_router(rfid_router.router)
 
-# Mount static folder (optional)
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(static_dir):
 	app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Create tables when importing the module (useful for tests and for simulated phase 1)
 init_db()
 
 
 @app.get("/")
 def root_redirect():
-	"""Redirect root to admin panel for a more direct experience."""
+	"""Redirect root to admin panel."""
 	return RedirectResponse(url="/admin")
 
 
 @app.on_event("startup")
 def _start_rfid_service():
-	# Start hardware RFID listener if configured via environment
+	"""Initialize RFID hardware service if enabled in configuration."""
 	try:
 		rfid_service.start_service_if_configured()
 	except Exception:
@@ -110,6 +100,7 @@ def _start_rfid_service():
 
 @app.on_event("shutdown")
 def _stop_rfid_service():
+	"""Clean shutdown of RFID hardware service."""
 	try:
 		rfid_service.stop_service()
 	except Exception:

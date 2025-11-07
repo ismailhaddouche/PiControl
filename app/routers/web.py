@@ -62,15 +62,12 @@ router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "..", "templates"))
 
 
-# Jinja filter to format datetimes in a readable local/ISO format
 def format_datetime(value):
+    """Format datetime as local ISO string with timezone."""
     try:
-        # If naive, assume UTC
         if value.tzinfo is None:
             from datetime import timezone
-
             value = value.replace(tzinfo=timezone.utc)
-        # Local/ISO readable format
         return value.astimezone().strftime("%Y-%m-%d %H:%M:%S %Z")
     except Exception:
         return str(value)
@@ -96,7 +93,6 @@ def login_get(request: Request):
 
 @router.post("/admin/login")
 def login_post(request: Request, username: str = Form(...), password: str = Form(...), session_db: Session = Depends(get_session)):
-    # Authentication against the User table
     user = get_user(session_db, username)
     if user and verify_password(password, user.hashed_password):
         request.session["user"] = username
@@ -114,12 +110,8 @@ def logout(request: Request):
 def admin_index(request: Request, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # pop and clear flash message from session (if any)
     flash = request.session.pop("flash", None)
-    # fetch last 20 check-ins to show on the dashboard
-    # and map employee_id -> name for display
     recent_checkins = list_recent_checkins(session, limit=20)
-    # show only active employees on main screen
     employees = list_employees(session, active_only=True)
     employees_map = {e.document_id: e.name for e in employees}
 
@@ -159,15 +151,12 @@ def admin_rfid_assign(request: Request, employee_id: str = Form(...), session: S
         request.session["flash"] = "Invalid pending payload."
         _clear_pending_file()
         return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
-    # assign via CRUD
     emp = assign_rfid(session, employee_id, rfid_uid, performed_by=username)
     if not emp:
         request.session["flash"] = "Employee not found."
         return RedirectResponse(url="/admin/rfid", status_code=HTTP_302_FOUND)
-    # clear pending and redirect
     _clear_pending_file()
     request.session["flash"] = f"RFID {rfid_uid} assigned to {emp.name} ({emp.document_id})."
-    # broadcast assignment event
     try:
         from app.rfid import push_event
         push_event({"type": "rfid_assigned", "rfid_uid": rfid_uid, "employee_id": emp.document_id, "employee_name": emp.name, "timestamp": datetime.utcnow().isoformat()})
@@ -188,7 +177,7 @@ def admin_rfid_clear(request: Request):
 
 @router.post("/admin/rfid/assign_ajax")
 def admin_rfid_assign_ajax(request: Request, employee_id: str = Form(...), session: Session = Depends(get_session)):
-    """AJAX endpoint to assign the currently pending RFID to an employee and return JSON."""
+    """Assign pending RFID to employee and return JSON result."""
     if not require_login(request):
         return {"success": False, "error": "Not authenticated"}
     username = request.session.get("user")
@@ -203,7 +192,6 @@ def admin_rfid_assign_ajax(request: Request, employee_id: str = Form(...), sessi
     if not emp:
         return {"success": False, "error": "Employee not found"}
     _clear_pending_file()
-    # broadcast assignment event
     try:
         from app.rfid import push_event
         push_event({"type": "rfid_assigned", "rfid_uid": rfid_uid, "employee_id": emp.document_id, "employee_name": emp.name, "timestamp": datetime.utcnow().isoformat()})
@@ -214,10 +202,7 @@ def admin_rfid_assign_ajax(request: Request, employee_id: str = Form(...), sessi
 
 @router.post("/admin/checkins/manual")
 def admin_checkin_manual(request: Request, employee_id: Optional[str] = Form(None), rfid_uid: Optional[str] = Form(None), session: Session = Depends(get_session)):
-    """Create a manual check-in selecting an employee or by RFID (compatibility).
-
-    Stores a message in `request.session['flash']` for user feedback.
-    """
+    """Create manual check-in by employee ID or RFID."""
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     
@@ -227,7 +212,6 @@ def admin_checkin_manual(request: Request, employee_id: Optional[str] = Form(Non
     elif rfid_uid:
         result = create_checkin_by_rfid(session, rfid_uid)
     
-    # Log the manual check-in action for admin auditing
     try:
         username = request.session.get("user")
         if result and username:
@@ -237,7 +221,6 @@ def admin_checkin_manual(request: Request, employee_id: Optional[str] = Form(Non
         pass
     
     if not result:
-        # generic message when creation failed
         request.session["flash"] = "Could not create check-in (employee not found)."
     else:
         checkin, employee, message = result
@@ -248,10 +231,7 @@ def admin_checkin_manual(request: Request, employee_id: Optional[str] = Form(Non
 
 @router.post("/admin/checkins/manual_ajax")
 def admin_checkin_manual_ajax(request: Request, employee_id: Optional[str] = Form(None), rfid_uid: Optional[str] = Form(None), session: Session = Depends(get_session)):
-    """AJAX endpoint that creates a check-in and returns JSON with the result and record.
-
-    Accepts `employee_id` (preferred) or `rfid_uid`.
-    """
+    """Create check-in and return JSON result."""
     if not require_login(request):
         return {"success": False, "error": "Not authenticated"}
     
@@ -269,7 +249,6 @@ def admin_checkin_manual_ajax(request: Request, employee_id: Optional[str] = For
         username = request.session.get("user")
         if username:
             log_admin_action(session, username, "manual_checkin", f"checkin id={checkin.id} employee={employee.document_id} type={checkin.type}")
-            # broadcast manual checkin event
             try:
                 from app.rfid import push_event
                 push_event({"type": "checkin", "rfid_uid": None, "employee_id": employee.document_id, "employee_name": employee.name, "checkin_type": checkin.type, "checkin_id": checkin.id, "timestamp": checkin.timestamp.isoformat(), "message": message})
@@ -293,7 +272,6 @@ def admin_checkin_manual_ajax(request: Request, employee_id: Optional[str] = For
 
 @router.get("/admin/setup", response_class=HTMLResponse)
 def admin_setup_get(request: Request, session: Session = Depends(get_session)):
-    # If an admin user already exists, redirect to login
     if any_admin_exists(session):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
     return templates.TemplateResponse("setup.html", {"request": request})
@@ -303,7 +281,6 @@ def admin_setup_get(request: Request, session: Session = Depends(get_session)):
 def admin_setup_post(request: Request, username: str = Form(...), password: str = Form(...), session: Session = Depends(get_session)):
     if any_admin_exists(session):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # create admin user (setup action)
     create_user(session, username=username, password=password, is_admin=True, performed_by="setup")
     return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
 
@@ -312,7 +289,6 @@ def admin_setup_post(request: Request, username: str = Form(...), password: str 
 def admin_employees(request: Request, session: Session = Depends(get_session)):
     if not require_login(request):
         return RedirectResponse(url="/admin/login", status_code=HTTP_302_FOUND)
-    # show only active employees on the employees page
     employees = list_employees(session, active_only=True)
     employees = employees
     return templates.TemplateResponse("employees.html", {"request": request, "employees": employees, "employees": employees})

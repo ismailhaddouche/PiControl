@@ -36,7 +36,7 @@ def api_list_checkins(employee_id: Optional[str] = None, session: Session = Depe
 
 @router.get("/checkins/employee/{employee_id}")
 def api_list_checkins_by_employee(employee_id: str, start: Optional[str] = Query(None), end: Optional[str] = Query(None), session: Session = Depends(get_session)):
-    """List check-ins for an employee optionally filtering by ISO date range (start,end)."""
+    """List check-ins for employee with optional date range filter."""
     start_dt = datetime.fromisoformat(start) if start else None
     end_dt = datetime.fromisoformat(end) if end else None
     checkins = list_checkins(session, employee_id=employee_id, start=start_dt, end=end_dt)
